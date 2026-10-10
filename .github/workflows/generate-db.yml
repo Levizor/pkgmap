@@ -1,0 +1,65 @@
+name: Generate Database Release
+
+on:
+  schedule:
+    # Run daily at 05:00 UTC (Repology finishes dump generation around 04:11 UTC)
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: 'Batch size for database ingestion'
+        required: false
+        default: '50000'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download Repology dump
+        id: dump
+        run: uv run pkgmap-pipeline download
+
+      - name: Build SQLite database
+        run: |
+          uv run pkgmap-pipeline build \
+            -i "${{ steps.dump.outputs.dump_path }}" \
+            -o package_map.sqlite \
+            --dump-date "${{ steps.dump.outputs.date }}" \
+            --release-notes release_notes.md \
+            --batch-size ${{ inputs.batch_size || '50000' }}
+
+      - name: Compress database with zstd
+        run: |
+          zstd -19 -T0 package_map.sqlite -o package_map.sqlite.zst
+          zstd -t package_map.sqlite.zst
+          sha256sum package_map.sqlite.zst > package_map.sqlite.zst.sha256
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.dump.outputs.tag }}
+          name: "Package Map ${{ steps.dump.outputs.date }}"
+          body_path: release_notes.md
+          make_latest: true
+          files: |
+            package_map.sqlite.zst
+            package_map.sqlite.zst.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
