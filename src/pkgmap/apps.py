@@ -52,7 +52,7 @@ def pipeline_build(
             "--output-path",
             help="Path for the output SQLite database",
         ),
-    ] = Path("package_map.sqlite"),
+    ] = Path("pkgmap.db"),
     batch_size: Annotated[
         int,
         typer.Option(

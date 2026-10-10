@@ -182,20 +182,11 @@ def generate_release_notes(
     total_repos: int,
     output_path: Path,
 ) -> str:
-    """Generate markdown release notes for GitHub Releases."""
-    content = f"""## Repology Database Snapshot ({dump_date})
-
-Generated offline SQLite database mapping packages across Linux distributions and repositories.
-
-### Metadata
-- **Snapshot Date**: `{dump_date}`
-- **Total Packages**: `{total_packages:,}`
-- **Repositories**: `{total_repos}`
-
-### Attribution
-Data sourced from [Repology](https://repology.org) database dump.
-Repology is published under the [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) license.
-"""
+    """Generate compact markdown release notes for GitHub Releases."""
+    content = (
+        f"> **{dump_date} snapshot**: {total_packages:,} packages · {total_repos} repositories"
+        f" · Sourced from [Repology](https://repology.org) ([CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/))\n"
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(content, encoding="utf-8")
     logger.info(f"Generated release notes at {output_path}")

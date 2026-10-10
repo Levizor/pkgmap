@@ -9,19 +9,19 @@ from pkgmap.logger import setup_logger
 logger = setup_logger("pkgmap-db")
 
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "pkgmap"
-DEFAULT_DB_PATH = DEFAULT_CACHE_DIR / "package_map.sqlite"
+DEFAULT_DB_PATH = DEFAULT_CACHE_DIR / "pkgmap.db"
 GITHUB_RELEASE_LATEST_URL = (
-    "https://github.com/Levizor/pkgmap/releases/latest/download/package_map.sqlite.zst"
+    "https://github.com/Levizor/pkgmap/releases/latest/download/pkgmap.db.zst"
 )
 
 
 def get_database_path(db_path: Path | str | None = None) -> Path:
-    """Resolve the path to the package_map.sqlite database.
+    """Resolve the path to the pkgmap.db database.
 
     Precedence:
     1. Explicit db_path argument
     2. PKGMAP_DB_PATH environment variable
-    3. Default cache location: ~/.cache/pkgmap/package_map.sqlite
+    3. Default cache location: ~/.cache/pkgmap/pkgmap.db
     """
     if db_path is not None:
         return Path(db_path).expanduser().resolve()

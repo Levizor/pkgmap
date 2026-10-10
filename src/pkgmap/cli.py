@@ -53,7 +53,7 @@ def resolve_cmd(
     ] = False,
     db_path: Annotated[
         Path | None,
-        typer.Option("--db-path", help="Custom path to package_map.sqlite database"),
+        typer.Option("--db-path", help="Custom path to pkgmap.db database"),
     ] = None,
 ) -> None:
     """Resolve a package name across Linux distributions."""
@@ -119,9 +119,7 @@ def resolve_cmd(
 def update_cmd(
     db_path: Annotated[
         Path | None,
-        typer.Option(
-            "--db-path", help="Custom path to save package_map.sqlite database"
-        ),
+        typer.Option("--db-path", help="Custom path to save pkgmap.db database"),
     ] = None,
 ) -> None:
     """Explicitly download and update the local package map database."""
@@ -137,7 +135,7 @@ def update_cmd(
 def repos_cmd(
     db_path: Annotated[
         Path | None,
-        typer.Option("--db-path", help="Custom path to package_map.sqlite database"),
+        typer.Option("--db-path", help="Custom path to pkgmap.db database"),
     ] = None,
 ) -> None:
     """List all available distributions and repositories."""

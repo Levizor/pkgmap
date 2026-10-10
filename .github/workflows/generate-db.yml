@@ -40,26 +40,40 @@ jobs:
         run: |
           uv run pkgmap-pipeline build \
             -i "${{ steps.dump.outputs.dump_path }}" \
-            -o package_map.sqlite \
+            -o pkgmap.db \
             --dump-date "${{ steps.dump.outputs.date }}" \
             --release-notes release_notes.md \
             --batch-size ${{ inputs.batch_size || '50000' }}
 
-      - name: Compress database with zstd
+      - name: Compress database and generate checksums
         run: |
-          zstd -19 -T0 package_map.sqlite -o package_map.sqlite.zst
-          zstd -t package_map.sqlite.zst
-          sha256sum package_map.sqlite.zst > package_map.sqlite.zst.sha256
+          sha256sum pkgmap.db > pkgmap.db.sha256
+          zstd -19 -T0 pkgmap.db -o pkgmap.db.zst
+          zstd -t pkgmap.db.zst
+          sha256sum pkgmap.db.zst > pkgmap.db.zst.sha256
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.dump.outputs.tag }}
-          name: "Package Map ${{ steps.dump.outputs.date }}"
+          name: "pkgmap.db"
           body_path: release_notes.md
           make_latest: true
           files: |
-            package_map.sqlite.zst
-            package_map.sqlite.zst.sha256
+            pkgmap.db
+            pkgmap.db.sha256
+            pkgmap.db.zst
+            pkgmap.db.zst.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prune old database releases
+        run: |
+          gh release list --limit 100 --json tagName --jq '.[] | .tagName | select(startswith("db-"))' | tail -n +8 | while read -r tag; do
+            if [ -n "$tag" ]; then
+              echo "Pruning database release: $tag"
+              gh release delete "$tag" --cleanup-tag -y || true
+            fi
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

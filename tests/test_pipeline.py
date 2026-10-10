@@ -156,7 +156,7 @@ def test_run_pipeline_integration(tmp_path: Path) -> None:
     compressor = zstd.ZstdCompressor()
     dump_path.write_bytes(compressor.compress(mock_sql.encode("utf-8")))
 
-    output_db = tmp_path / "package_map.sqlite"
+    output_db = tmp_path / "pkgmap.db"
     consumer = SQLiteConsumer(output_file=output_db, batch_size=2)
 
     # 2. Run the pipeline
