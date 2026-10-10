@@ -128,6 +128,9 @@ def parse_repology_records(lines: Iterable[str]) -> Iterator[RepologyPackageRow]
                 family=row.get("family", ""),
                 visiblename=visiblename,
                 effname=effname,
+                srcname=None
+                if row.get("srcname") in (None, r"\N")
+                else row.get("srcname"),
                 version=None
                 if row.get("version") in (None, r"\N")
                 else row.get("version"),

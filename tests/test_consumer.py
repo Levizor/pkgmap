@@ -12,28 +12,28 @@ def test_sqlite_consumer_ingestion(tmp_path: Path) -> None:
     records = [
         PackageRecord(
             repo="debian_12",
-            visiblename="batcat",
+            package_name="batcat",
             effname="bat",
             version="0.24.0",
             category="utils",
         ),
         PackageRecord(
             repo="arch",
-            visiblename="bat",
+            package_name="bat",
             effname="bat",
             version="0.24.0",
             category="extra",
         ),
         PackageRecord(
             repo="debian_12",
-            visiblename="ripgrep",
+            package_name="ripgrep",
             effname="ripgrep",
             version="14.1.0",
             category="utils",
         ),
         PackageRecord(
             repo="nix_unstable",
-            visiblename="ripgrep",
+            package_name="ripgrep",
             effname="ripgrep",
             version="14.1.0",
             category="tools",
@@ -56,10 +56,10 @@ def test_sqlite_consumer_ingestion(tmp_path: Path) -> None:
     # Check packages table
     cursor.execute(
         """
-        SELECT r.name, p.visiblename, p.effname, p.version
+        SELECT r.name, p.package_name, p.effname, p.version
         FROM packages p
         JOIN repositories r ON p.repo_id = r.id
-        ORDER BY r.name, p.visiblename
+        ORDER BY r.name, p.package_name
         """
     )
     packages = cursor.fetchall()
@@ -81,15 +81,15 @@ def test_sqlite_consumer_ingestion(tmp_path: Path) -> None:
     )
     assert cursor.fetchone() is not None
 
-    # Test cross-repo resolution self-join query from GEMINI.md
+    # Test cross-repo resolution self-join query
     cursor.execute(
         """
-        SELECT dst.visiblename, dst.version
+        SELECT dst.package_name, dst.version
         FROM packages src
         JOIN repositories src_repo ON src.repo_id = src_repo.id
         JOIN packages dst ON src.effname = dst.effname
         JOIN repositories dst_repo ON dst.repo_id = dst_repo.id
-        WHERE src_repo.name = ? AND src.visiblename = ? AND dst_repo.name = ?;
+        WHERE src_repo.name = ? AND src.package_name = ? AND dst_repo.name = ?;
         """,
         ("debian_12", "batcat", "arch"),
     )

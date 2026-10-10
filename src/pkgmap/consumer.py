@@ -20,16 +20,16 @@ CREATE TABLE IF NOT EXISTS repository_aliases (
 );
 CREATE TABLE IF NOT EXISTS packages (
     repo_id INTEGER NOT NULL REFERENCES repositories(id),
-    visiblename TEXT NOT NULL,
+    package_name TEXT NOT NULL,
     effname TEXT NOT NULL,
     version TEXT,
     category TEXT,
-    PRIMARY KEY (repo_id, visiblename)
+    PRIMARY KEY (repo_id, package_name)
 ) WITHOUT ROWID;
 """
 
 INSERT_PACKAGES_QUERY = (
-    "INSERT OR IGNORE INTO packages (repo_id, visiblename, effname, version, category) "
+    "INSERT OR IGNORE INTO packages (repo_id, package_name, effname, version, category) "
     "VALUES (?, ?, ?, ?, ?)"
 )
 
@@ -60,7 +60,7 @@ class SQLiteConsumer:
         rows = [
             (
                 self.repo_ids.setdefault(pkg.repo, len(self.repo_ids) + 1),
-                pkg.visiblename,
+                pkg.package_name,
                 pkg.effname,
                 pkg.version,
                 pkg.category,
