@@ -48,8 +48,8 @@ def update_database(
     target_path = get_database_path(db_path)
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
-    compressed_tmp = target_path.with_suffix(".sqlite.zst.tmp")
-    decompressed_tmp = target_path.with_suffix(".sqlite.decompressed.tmp")
+    compressed_tmp = target_path.with_name(f"{target_path.name}.zst.tmp")
+    decompressed_tmp = target_path.with_name(f"{target_path.name}.decompressed.tmp")
 
     try:
         logger.info(f"Downloading latest database release from {url}")

@@ -14,6 +14,23 @@ cli_app = typer.Typer(
 )
 
 
+@cli_app.callback()
+def cli_callback(
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Enable verbose debug logging"),
+    ] = False,
+) -> None:
+    if verbose:
+        import logging
+
+        for name in ("pkgmap", "pkgmap-db", "pkgmap-downloader", "pkgmap-consumer"):
+            log = logging.getLogger(name)
+            log.setLevel(logging.DEBUG)
+            for handler in log.handlers:
+                handler.setLevel(logging.DEBUG)
+
+
 @cli_app.command(name="resolve")
 def resolve_cmd(
     package: Annotated[
