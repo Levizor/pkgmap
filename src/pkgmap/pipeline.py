@@ -50,21 +50,31 @@ def fetch_latest_database_dump_link(
 
 
 def download_dump_file(
-    link: str,
+    dump_link: str | None = None,
     dest_dir: Path | None = None,
     show_progress: bool = True,
-) -> Path:
-    """Download the dump file to dest_dir (defaults to current directory)."""
+) -> tuple[Path, str]:
+    """Download the Repology dump file and return (dump_path, dump_date)."""
+    if not dump_link:
+        dump_link, dump_date = fetch_latest_database_dump_link()
+    else:
+        match = re.search(r"(\d{4}-\d{2}-\d{2})", dump_link)
+        dump_date = (
+            match.group(1) if match else datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        )
+
     target_dir = dest_dir or Path.cwd()
-    parsed_path = urllib.parse.urlparse(link).path
+    parsed_path = urllib.parse.urlparse(dump_link).path
     filename = Path(urllib.parse.unquote(parsed_path)).name or "repology_dump.sql.zst"
     dest_path = target_dir / filename
-    return download_file(
-        url=link,
+
+    dump_path = download_file(
+        url=dump_link,
         dest_path=dest_path,
         show_progress=show_progress,
         label="Downloading Repology dump",
     )
+    return dump_path, dump_date
 
 
 def stream_dump_lines(dump: Path) -> Iterator[str]:
@@ -163,25 +173,6 @@ def set_github_output(**kwargs: str) -> None:
             f.write(f"{key}={value}\n")
 
 
-def download_pipeline_dump(
-    dump_link: str | None = None,
-    dest_dir: Path | None = None,
-) -> tuple[Path, str]:
-    """Download the latest Repology dump file and return (dump_path, dump_date)."""
-    if not dump_link:
-        dump_link, dump_date = fetch_latest_database_dump_link()
-        logger.info(f"Targeting Repology dump from {dump_date}")
-    else:
-        match = re.search(r"(\d{4}-\d{2}-\d{2})", dump_link)
-        dump_date = (
-            match.group(1) if match else datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        )
-
-    logger.info(f"Downloading dump file from {dump_link}")
-    dump_file = download_dump_file(dump_link, dest_dir=dest_dir)
-    return dump_file, dump_date
-
-
 def generate_release_notes(
     dump_date: str,
     total_packages: int,
@@ -229,7 +220,7 @@ def main(
     )
 
     if not dump_file:
-        dump_file, detected_date = download_pipeline_dump(dump_link=dump_link)
+        dump_file, detected_date = download_dump_file(dump_link=dump_link)
         if not dump_date:
             dump_date = detected_date
     elif not dump_date:

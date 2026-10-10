@@ -4,7 +4,7 @@ from typing import Annotated
 import typer
 
 from pkgmap import cli, pipeline
-from pkgmap.pipeline import download_pipeline_dump, set_github_output
+from pkgmap.pipeline import download_dump_file, set_github_output
 
 cli_app = typer.Typer(
     name="pkgmap",
@@ -36,7 +36,7 @@ def pipeline_download(
     ] = None,
 ) -> None:
     """Download the latest Repology database dump."""
-    dump_file, dump_date = download_pipeline_dump(dump_link=link, dest_dir=dest_dir)
+    dump_file, dump_date = download_dump_file(dump_link=link, dest_dir=dest_dir)
     set_github_output(
         date=dump_date,
         tag=f"db-{dump_date}",

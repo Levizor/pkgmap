@@ -8,7 +8,6 @@ from pkgmap.consumer import SQLiteConsumer
 from pkgmap.pipeline import (
     do_fn,
     download_dump_file,
-    download_pipeline_dump,
     fetch_latest_database_dump_link,
     generate_release_notes,
     main,
@@ -130,13 +129,16 @@ def test_download_dump_file(tmp_path: Path) -> None:
     mock_resp.__enter__.return_value = mock_resp
 
     with patch("urllib.request.urlopen", return_value=mock_resp):
-        dest = download_dump_file(
-            "https://example.com/test.sql.zst", dest_dir=tmp_path, show_progress=False
+        dest, dump_date = download_dump_file(
+            "https://example.com/repology-database-dump-2026-10-09.sql.zst",
+            dest_dir=tmp_path,
+            show_progress=False,
         )
 
     assert isinstance(dest, Path)
     assert dest.exists()
     assert dest.read_bytes() == b"compressed chunk 1compressed chunk 2"
+    assert dump_date == "2026-10-09"
 
 
 def test_run_pipeline_integration(tmp_path: Path) -> None:
@@ -216,18 +218,21 @@ def test_set_github_output(tmp_path: Path, monkeypatch) -> None:
     assert "tag=db-2026-10-10" in lines
 
 
-def test_download_pipeline_dump_with_override(tmp_path: Path) -> None:
-    mock_file = tmp_path / "custom.sql.zst"
+def test_download_dump_file_auto_fetch(tmp_path: Path) -> None:
+    mock_file = tmp_path / "latest.sql.zst"
     mock_file.write_bytes(b"mock")
 
-    with patch("pkgmap.pipeline.download_dump_file", return_value=mock_file):
-        dest, date_str = download_pipeline_dump(
-            dump_link="https://example.com/repology-database-dump-2026-10-09.sql.zst",
-            dest_dir=tmp_path,
-        )
+    with (
+        patch(
+            "pkgmap.pipeline.fetch_latest_database_dump_link",
+            return_value=("https://example.com/latest.sql.zst", "2026-10-10"),
+        ),
+        patch("pkgmap.pipeline.download_file", return_value=mock_file),
+    ):
+        dest, date_str = download_dump_file(dest_dir=tmp_path)
 
     assert dest == mock_file
-    assert date_str == "2026-10-09"
+    assert date_str == "2026-10-10"
 
 
 def test_pipeline_main_with_release_notes(tmp_path: Path, monkeypatch) -> None:
