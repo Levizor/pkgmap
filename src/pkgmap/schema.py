@@ -1,0 +1,57 @@
+from typing import NamedTuple
+
+
+class Repository(NamedTuple):
+    name: str
+    family: str
+    package_count: int = 0
+    id: int | None = None
+
+
+class RepositoryAlias(NamedTuple):
+    alias: str
+    target_repo: str
+
+
+type RepoFamilyMap = dict[str, str]
+
+
+class PackageRecord(NamedTuple):
+    repo: str
+    visiblename: str  # package name
+    effname: str  # unique project name, same for all packages
+    version: str | None = None
+    category: str | None = None
+
+
+# Upstream Repology PostgreSQL schema definition:
+# https://github.com/repology/repology-updater/blob/master/sql.d/schema/create_schema_tables.sql
+REPOLOGY_SCHEMA_URL = "https://github.com/repology/repology-updater/blob/master/sql.d/schema/create_schema_tables.sql"
+
+
+class RepologyPackageRow(NamedTuple):
+    """Repology 'packages' table row schema extracted from PostgreSQL dumps.
+
+    Reference:
+    https://github.com/repology/repology-updater/blob/master/sql.d/schema/create_schema_tables.sql#L31-L75
+    """
+
+    repo: str
+    family: str
+    visiblename: str
+    effname: str  # Canonical upstream project name
+    version: str | None = None
+    category: str | None = None
+    subrepo: str | None = None
+    origversion: str | None = None
+    flags: int = 0
+    shadow: bool = False
+
+    def to_package_record(self) -> "PackageRecord":
+        return PackageRecord(
+            repo=self.repo,
+            visiblename=self.visiblename,
+            effname=self.effname,
+            version=self.version,
+            category=self.category,
+        )
