@@ -3,25 +3,15 @@ from typing import Annotated
 
 import typer
 
-from pkgmap import cli, pipeline
+from pkgmap import pipeline
+from pkgmap.cli import cli_app
 from pkgmap.pipeline import download_dump_file, set_github_output
-
-cli_app = typer.Typer(
-    name="pkgmap",
-    help="Map packages across repositories",
-    add_completion=False,
-)
 
 pipeline_app = typer.Typer(
     name="pkgmap-pipeline",
     help="Download dump, transform, and build package map database",
     add_completion=False,
 )
-
-
-@cli_app.command()
-def cli_main() -> None:
-    cli.main()
 
 
 @pipeline_app.command(name="download")
