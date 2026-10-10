@@ -12,8 +12,8 @@ dependencies = [
 ]
 
 [project.scripts]
-pkgmap = "pkgmap.cli:main"
-pkgmap-pipeline = "pkgmap.pipeline:main"
+pkgmap = "pkgmap.apps:cli_app"
+pkgmap-pipeline = "pkgmap.apps:pipeline_app"
 
 [dependency-groups]
 dev = [
