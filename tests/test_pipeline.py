@@ -76,10 +76,10 @@ def test_parse_repology_records() -> None:
     # Simulated PostgreSQL COPY stream
     raw_lines = [
         "-- PostgreSQL dump",
-        "COPY public.packages (repo, family, visiblename, effname, version, category, shadow) FROM stdin;",
-        "debian_12\tdebian\tbatcat\tbat\t0.24.0\tutils\tf",
-        "arch\tarch\tbat\tbat\t0.24.0\textra\tf",
-        "arch\tarch\toldbat\tbat\t0.20.0\textra\tt",
+        "COPY public.packages (repo, family, visiblename, effname, srcname, version, category, shadow) FROM stdin;",
+        "debian_12\tdebian\tbatcat\tbat\tbatcat\t0.24.0\tutils\tf",
+        "arch\tarch\tbat\tbat\tbat\t0.24.0\textra\tf",
+        "arch\tarch\toldbat\tbat\toldbat\t0.20.0\textra\tt",
         "\\.",
         "-- End of dump",
     ]
@@ -91,6 +91,7 @@ def test_parse_repology_records() -> None:
     assert records[0].family == "debian"
     assert records[0].visiblename == "batcat"
     assert records[0].effname == "bat"
+    assert records[0].srcname == "batcat"
     assert records[0].version == "0.24.0"
     assert records[0].shadow is False
 
@@ -144,11 +145,11 @@ def test_download_dump_file(tmp_path: Path) -> None:
 def test_run_pipeline_integration(tmp_path: Path) -> None:
     # 1. Compress mock SQL lines to a temporary .sql.zst file
     mock_sql = (
-        "COPY public.packages (repo, family, visiblename, effname, version, category, shadow) FROM stdin;\n"
-        "debian_12\tdebian\tbatcat\tbat\t0.24.0\tutils\tf\n"
-        "arch\tarch\tbat\tbat\t0.24.0\textra\tf\n"
-        "nix_unstable\tnix\tbat\tbat\t0.24.0\ttools\tf\n"
-        "debian_12\tdebian\tbat-old\tbat\t0.20.0\tutils\tt\n"
+        "COPY public.packages (repo, family, visiblename, effname, srcname, version, category, shadow) FROM stdin;\n"
+        "debian_12\tdebian\tbatcat\tbat\tbatcat\t0.24.0\tutils\tf\n"
+        "arch\tarch\tbat\tbat\tbat\t0.24.0\textra\tf\n"
+        "nix_unstable\tnix\tbat\tbat\tbat\t0.24.0\ttools\tf\n"
+        "debian_12\tdebian\tbat-old\tbat\tbat-old\t0.20.0\tutils\tt\n"
         "\\.\n"
     )
     dump_path = tmp_path / "mock_dump.sql.zst"
@@ -177,12 +178,12 @@ def test_run_pipeline_integration(tmp_path: Path) -> None:
     # 4. Verify resolution query works on generated database
     cursor.execute(
         """
-        SELECT dst.visiblename, dst.version
+        SELECT dst.package_name, dst.version
         FROM packages src
         JOIN repositories src_repo ON src.repo_id = src_repo.id
         JOIN packages dst ON src.effname = dst.effname
         JOIN repositories dst_repo ON dst.repo_id = dst_repo.id
-        WHERE src_repo.name = ? AND src.visiblename = ? AND dst_repo.name = ?;
+        WHERE src_repo.name = ? AND src.package_name = ? AND dst_repo.name = ?;
         """,
         ("debian_12", "batcat", "nix_unstable"),
     )
