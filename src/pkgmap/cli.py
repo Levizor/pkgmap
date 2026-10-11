@@ -112,10 +112,8 @@ def resolve_cmd(
             {
                 "name": r.name,
                 "version": r.version,
-                "category": r.category,
                 "repo": r.repo,
                 "repo_family": r.repo_family,
-                "install_name": r.install_name,
             }
             for r in items_to_show
         ]
@@ -124,12 +122,8 @@ def resolve_cmd(
 
     for res in items_to_show:
         version_str = f" ({res.version})" if res.version else ""
-        meta_parts = []
-        if res.category and res.repo_family != "nix":
-            meta_parts.append(f"category: {res.category}")
-        meta_str = f" [{', '.join(meta_parts)}]" if meta_parts else ""
         repo_prefix = f"{res.repo}: " if to_repo is None else ""
-        typer.echo(f"{repo_prefix}{res.install_name}{version_str}{meta_str}")
+        typer.echo(f"{repo_prefix}{res.name}{version_str}")
 
 
 @cli_app.command(name="update")

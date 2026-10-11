@@ -15,28 +15,24 @@ def test_sqlite_consumer_ingestion(tmp_path: Path) -> None:
             package_name="batcat",
             effname="bat",
             version="0.24.0",
-            category="utils",
         ),
         PackageRecord(
             repo="arch",
             package_name="bat",
             effname="bat",
             version="0.24.0",
-            category="extra",
         ),
         PackageRecord(
             repo="debian_12",
             package_name="ripgrep",
             effname="ripgrep",
             version="14.1.0",
-            category="utils",
         ),
         PackageRecord(
             repo="nix_unstable",
             package_name="ripgrep",
             effname="ripgrep",
             version="14.1.0",
-            category="tools",
         ),
     ]
 
@@ -78,6 +74,10 @@ def test_sqlite_consumer_ingestion(tmp_path: Path) -> None:
     # Check index existence
     cursor.execute(
         "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_effname'"
+    )
+    assert cursor.fetchone() is not None
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_package_name'"
     )
     assert cursor.fetchone() is not None
 

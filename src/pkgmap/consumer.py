@@ -23,14 +23,13 @@ CREATE TABLE IF NOT EXISTS packages (
     package_name TEXT NOT NULL,
     effname TEXT NOT NULL,
     version TEXT,
-    category TEXT,
     PRIMARY KEY (repo_id, package_name)
 ) WITHOUT ROWID;
 """
 
 INSERT_PACKAGES_QUERY = (
-    "INSERT OR IGNORE INTO packages (repo_id, package_name, effname, version, category) "
-    "VALUES (?, ?, ?, ?, ?)"
+    "INSERT OR IGNORE INTO packages (repo_id, package_name, effname, version) "
+    "VALUES (?, ?, ?, ?)"
 )
 
 INSERT_REPOSITORIES_QUERY = "INSERT OR REPLACE INTO repositories (id, name, family, package_count) VALUES (?, ?, ?, ?)"
@@ -38,6 +37,9 @@ INSERT_REPOSITORIES_QUERY = "INSERT OR REPLACE INTO repositories (id, name, fami
 SELECT_REPO_COUNTS_QUERY = "SELECT repo_id, COUNT(*) FROM packages GROUP BY repo_id"
 
 CREATE_INDEX_QUERY = "CREATE INDEX IF NOT EXISTS idx_effname ON packages (effname);"
+CREATE_INDEX_PKGNAME_QUERY = (
+    "CREATE INDEX IF NOT EXISTS idx_package_name ON packages (package_name);"
+)
 
 
 class SQLiteConsumer:
@@ -63,7 +65,6 @@ class SQLiteConsumer:
                 pkg.package_name,
                 pkg.effname,
                 pkg.version,
-                pkg.category,
             )
             for pkg in batch
         ]
@@ -130,6 +131,7 @@ class SQLiteConsumer:
         self.populate_repositories(conn, repo_families)
 
         conn.execute(CREATE_INDEX_QUERY)
+        conn.execute(CREATE_INDEX_PKGNAME_QUERY)
         conn.commit()
 
         # Checkpoint WAL: Merges all pages from the write-ahead log back into the main database

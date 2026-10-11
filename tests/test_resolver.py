@@ -38,7 +38,6 @@ def mock_db(tmp_path: Path) -> Path:
         package_name TEXT NOT NULL,
         effname TEXT NOT NULL,
         version TEXT,
-        category TEXT,
         PRIMARY KEY (repo_id, package_name)
     ) WITHOUT ROWID;
 
@@ -53,17 +52,17 @@ def mock_db(tmp_path: Path) -> Path:
     INSERT INTO repository_aliases (alias, target_repo) VALUES
         ('deb', 'debian_12');
 
-    INSERT INTO packages (repo_id, package_name, effname, version, category) VALUES
-        (1, 'batcat', 'bat', '0.24.0', 'utils'),
-        (2, 'bat', 'bat', '0.24.0', NULL),
-        (3, 'bat', 'bat', '0.24.0', NULL),
-        (1, 'ripgrep', 'ripgrep', '14.1.0', 'utils'),
-        (2, 'ripgrep', 'ripgrep', '14.1.0', NULL),
-        (3, 'emacsPackages.magit', 'emacs-magit', '4.0.0', 'emacsPackages'),
-        (2, 'typst', 'typst', '0.15.1', NULL),
-        (2, 'haskell-typst', 'haskell:typst', '0.12', NULL),
-        (3, 'typst', 'typst', '0.15.1', NULL),
-        (3, 'haskellPackages.typst', 'haskell:typst', '0.12', 'haskellPackages');
+    INSERT INTO packages (repo_id, package_name, effname, version) VALUES
+        (1, 'batcat', 'bat', '0.24.0'),
+        (2, 'bat', 'bat', '0.24.0'),
+        (3, 'bat', 'bat', '0.24.0'),
+        (1, 'ripgrep', 'ripgrep', '14.1.0'),
+        (2, 'ripgrep', 'ripgrep', '14.1.0'),
+        (3, 'emacsPackages.magit', 'emacs-magit', '4.0.0'),
+        (2, 'typst', 'typst', '0.15.1'),
+        (2, 'haskell-typst', 'haskell:typst', '0.12'),
+        (3, 'typst', 'typst', '0.15.1'),
+        (3, 'haskellPackages.typst', 'haskell:typst', '0.12');
     """)
     conn.commit()
     conn.close()
@@ -92,16 +91,13 @@ def test_resolve_package(mock_db: Path) -> None:
     assert res.version == "0.24.0"
     assert res.repo == "arch"
     assert res.repo_family == "arch"
-    assert res.install_name == "bat"
 
 
-def test_resolve_nix_install_name(mock_db: Path) -> None:
+def test_resolve_nix_package_name(mock_db: Path) -> None:
     res = resolve_project("emacs-magit", to_repo="nixpkgs", db_path=mock_db)
     assert len(res) == 1
     assert res[0].name == "emacsPackages.magit"
-    assert res[0].category == "emacsPackages"
     assert res[0].repo_family == "nix"
-    assert res[0].install_name == "emacsPackages.magit"
 
 
 def test_resolve_nix_typst_exact_match(mock_db: Path) -> None:

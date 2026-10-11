@@ -222,6 +222,8 @@ __marimo__/
 
 # Local Repology dumps and SQLite databases
 pkgmap.db
+*.db.zst
+web/*.zst
 *.sqlite
 *.sqlite.zst
 *.sql.zst

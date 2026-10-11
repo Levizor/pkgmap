@@ -66,10 +66,8 @@ pkgmap resolve bat -f arch -t debian --json
   {
     "name": "rust-bat",
     "version": "0.22.1",
-    "category": "misc",
     "repo": "debian_12",
-    "repo_family": "debuntu",
-    "install_name": "rust-bat"
+    "repo_family": "debuntu"
   }
 ]
 ```
@@ -96,13 +94,13 @@ from pkgmap import resolve, resolve_all, resolve_batch
 # 1. Single package resolution
 res = resolve("bat", from_repo="arch", to_repo="debian")
 if res:
-    print(res.install_name, res.version)
+    print(res.name, res.version)
     # Output: rust-bat 0.22.1
 
 # 2. Query all repositories for equivalents
 matches = resolve_all("bat", from_repo="arch")
 for r in matches:
-    print(f"{r.repo}: {r.install_name}")
+    print(f"{r.repo}: {r.name}")
 
 # 3. High-performance batch resolution (executed in a single SQL query)
 packages = ["bat", "fd", "ripgrep"]
@@ -110,7 +108,7 @@ results = resolve_batch(packages, from_repo="arch", to_repo="nixpkgs")
 
 for pkg, match in results.items():
     if match:
-        print(f"{pkg} -> {match.install_name}")
+        print(f"{pkg} -> {match.name}")
 ```
 
 ### API Methods

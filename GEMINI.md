@@ -33,11 +33,11 @@ CREATE TABLE packages (
     package_name TEXT NOT NULL,          -- native package name, e.g. 'batcat'
     effname TEXT NOT NULL,               -- canonical upstream project/effective name, e.g. 'bat'
     version TEXT,                        -- normalized upstream version, e.g. '0.24.0'
-    category TEXT,                       -- category/component, e.g. 'utils'
     PRIMARY KEY (repo_id, package_name)
 ) WITHOUT ROWID;
 
 CREATE INDEX idx_effname ON packages (effname);
+CREATE INDEX idx_package_name ON packages (package_name);
 ```
 
 Resolving a package from repo `A` to repo `B` performs an indexed self-join on `effname`:
