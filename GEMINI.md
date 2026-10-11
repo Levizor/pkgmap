@@ -7,8 +7,8 @@ This document defines core conventions, architecture, and standards for `pkgmap`
 
 ## Architecture
 
-- **`pipeline/`**: Data extraction pipeline. Streams Repology database dumps (`.sql.zst`), extracts package-to-project mappings without loading multi-gigabyte SQL dumps into memory, and generates an optimized SQLite database (`package_map.sqlite`).
-- **`src/pkgmap/`**: Python client library and CLI. Manages local caching (`~/.cache/pkgmap/package_map.sqlite`), lazy database downloads from GitHub releases, and provides `resolve(package, from_repo, to_repo)`.
+- **`pipeline/`**: Data extraction pipeline. Streams Repology database dumps (`.sql.zst`), extracts package-to-project mappings without loading multi-gigabyte SQL dumps into memory, and generates an optimized SQLite database (`pkgmap.db`).
+- **`src/pkgmap/`**: Python client library and CLI. Manages local caching (`~/.cache/pkgmap/pkgmap.db`), lazy database downloads from GitHub releases, and provides `resolve(package, from_repo, to_repo)`.
 - **`tests/`**: Unit and integration test suite using `pytest` and `tmp_path`.
 - **`.github/workflows/`**: Automation workflows for periodic database generation, release publishing, and library CI.
 
@@ -17,10 +17,10 @@ The database uses a project-centered star schema and repository metadata to enab
 
 ```sql
 CREATE TABLE repositories (
-    name TEXT PRIMARY KEY,               -- canonical Repology slug, e.g. 'debian_12', 'nix_unstable'
+    id INTEGER PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,           -- canonical Repology slug, e.g. 'debian_12', 'nix_unstable'
     family TEXT NOT NULL,                -- e.g. 'debian', 'alpine', 'nix', 'arch', 'fedora'
-    package_count INTEGER DEFAULT 0,
-    is_active INTEGER DEFAULT 1
+    package_count INTEGER DEFAULT 0
 );
 
 CREATE TABLE repository_aliases (
@@ -29,24 +29,26 @@ CREATE TABLE repository_aliases (
 );
 
 CREATE TABLE packages (
-    repo TEXT NOT NULL,                  -- foreign key to repositories(name)
+    repo_id INTEGER NOT NULL REFERENCES repositories(id),
     package_name TEXT NOT NULL,          -- native package name, e.g. 'batcat'
-    project TEXT NOT NULL,               -- canonical upstream project, e.g. 'bat'
+    effname TEXT NOT NULL,               -- canonical upstream project/effective name, e.g. 'bat'
     version TEXT,                        -- normalized upstream version, e.g. '0.24.0'
     category TEXT,                       -- category/component, e.g. 'utils'
-    PRIMARY KEY (repo, package_name)
-);
+    PRIMARY KEY (repo_id, package_name)
+) WITHOUT ROWID;
 
-CREATE INDEX idx_project ON packages (project);
+CREATE INDEX idx_effname ON packages (effname);
 ```
 
-Resolving a package from repo `A` to repo `B` performs an indexed self-join on `project`:
+Resolving a package from repo `A` to repo `B` performs an indexed self-join on `effname`:
 
 ```sql
 SELECT dst.package_name, dst.version
 FROM packages src
-JOIN packages dst ON src.project = dst.project
-WHERE src.repo = ? AND src.package_name = ? AND dst.repo = ?;
+JOIN repositories src_repo ON src.repo_id = src_repo.id
+JOIN packages dst ON src.effname = dst.effname
+JOIN repositories dst_repo ON dst.repo_id = dst_repo.id
+WHERE src_repo.name = ? AND src.package_name = ? AND dst_repo.name = ?;
 ```
 
 ## Implementation Standards
