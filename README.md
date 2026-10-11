@@ -6,6 +6,8 @@ Different distributions often package the exact same software under different na
 
 Data is updated daily from [Repology](https://repology.org) and indexed for instant local lookups. On first run, `pkgmap` automatically downloads and decompresses the latest daily database release (`~/.cache/pkgmap/pkgmap.db`).
 
+The package is available on PyPI as [`pkgmap-py`](https://pypi.org/project/pkgmap-py/).
+
 ---
 
 ## CLI Usage
