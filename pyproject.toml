@@ -1,5 +1,5 @@
 [project]
-name = "pkgmap"
+name = "pkgmap-py"
 version = "0.1.0"
 description = "Cross-distribution Linux package name resolution"
 authors = [{ name = "Levizor", email = "levizor@disroot.org" }]
@@ -10,6 +10,11 @@ dependencies = [
     "typer>=0.12.0",
     "zstandard>=0.22.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Levizor/pkgmap"
+Repository = "https://github.com/Levizor/pkgmap"
+Issues = "https://github.com/Levizor/pkgmap/issues"
 
 [project.scripts]
 pkgmap = "pkgmap.apps:cli_app"
@@ -25,6 +30,9 @@ dev = [
 [build-system]
 requires = ["uv_build>=0.9.0,<0.10.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "pkgmap"
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "B"]

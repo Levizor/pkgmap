@@ -14,7 +14,7 @@
       packages.pkgmap = env;
       packages.default = packages.pkgmap;
 
-      packages.lib = pythonSet.pkgmap;
+      packages.lib = pythonSet."pkgmap-py";
       packages.pkgmap-lib = packages.lib;
 
       apps.pkgmap = {
