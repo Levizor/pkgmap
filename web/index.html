@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pkgmap — Cross-Distribution Linux Package Name Resolution</title>
+  <meta name="description" content="Cross-distribution Linux package name resolution with side-by-side comparison matrix powered by WebAssembly.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22 width=%22100%22 height=%22100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-emerald-500/30 selection:text-emerald-200">
+
+  <!-- Header -->
+  <header class="border-b border-zinc-800/80 bg-zinc-950/60 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">📦</span>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold tracking-tight text-white font-mono">pkgmap</h1>
+            <span class="text-[11px] font-mono text-emerald-400 font-semibold tracking-wide">SQLite WASM</span>
+          </div>
+          <p class="text-xs text-zinc-400">Cross-distribution Linux package resolution</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4 text-sm">
+        <a 
+          href="https://pypi.org/project/pkgmap-py/" 
+          target="_blank" 
+          rel="noopener" 
+          class="inline-flex items-center gap-1.5 text-xs font-mono text-zinc-400 hover:text-white transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="text-zinc-400 shrink-0">
+            <path d="M12.001 0a1.996 1.996 0 0 0-.986.27L1.879 5.54a2.005 2.005 0 0 0-1 1.733v9.454c0 .717.382 1.38 1 1.734l9.136 5.273a2 2 0 0 0 1.972 0l9.135-5.273a2.003 2.003 0 0 0 1-1.734V7.273a2.003 2.003 0 0 0-1-1.733L12.987.27A1.995 1.995 0 0 0 12.001 0zm.012 2.377 7.79 4.498-2.615 1.51-7.79-4.497 2.615-1.511zm-8.814 5.09 7.79 4.498v3.023l-7.79-4.498V7.467zm17.604 0v3.023l-7.79 4.498v-3.023l7.79-4.498zm-8.802 6.046 7.79 4.498-2.616 1.511-7.79-4.498 2.616-1.511z"/>
+          </svg>
+          <span>PyPI <span class="text-emerald-400">pkgmap-py</span></span>
+        </a>
+        <a 
+          href="https://github.com/Levizor/pkgmap" 
+          target="_blank" 
+          rel="noopener" 
+          class="inline-flex items-center gap-1.5 text-xs font-mono text-zinc-400 hover:text-white transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="text-zinc-400 shrink-0">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          <span>GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-6xl mx-auto px-4 py-8 flex-1 w-full space-y-8">
+
+    <!-- Loading / Status Container -->
+    <div id="status-container" class="max-w-md mx-auto my-16 p-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 shadow-2xl text-center">
+      <div id="status-spinner" class="inline-block animate-spin text-3xl mb-4">⚙️</div>
+      <h3 class="font-medium text-zinc-200 text-base" id="status-message">Initializing SQLite WebAssembly engine...</h3>
+      <p id="status-hint" class="text-xs text-zinc-400 mt-2">First load downloads the database snapshot. Subsequent visits are cached in your browser.</p>
+
+      <div id="file-protocol-warning" class="hidden text-left mt-3">
+        <div class="text-amber-400 font-semibold mb-2 text-center">Web Workers cannot run from file://</div>
+        <div class="text-xs text-zinc-300 leading-relaxed bg-zinc-950 p-3 rounded-lg border border-zinc-800">
+          Run: <code class="text-emerald-400">python3 -m http.server 8000 --directory web</code><br>
+          Then open: <a href="http://localhost:8000" class="text-emerald-400 underline font-medium">http://localhost:8000</a>
+        </div>
+      </div>
+
+      <div id="progress-bar" class="w-full bg-zinc-800 rounded-full h-2 mt-5 overflow-hidden hidden">
+        <div id="progress-fill" class="bg-emerald-500 h-2 rounded-full transition-all duration-200" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- App Container (Hidden during init) -->
+    <div id="app-container" class="hidden max-w-3xl mx-auto space-y-6">
+
+      <!-- Mode Switcher Tabs -->
+      <div class="mode-switcher-wrap">
+        <div class="mode-switcher-box">
+          <button id="tab-single" type="button" class="mode-tab-btn active">
+            <span>Single Lookup</span>
+          </button>
+          <div class="mode-tab-separator"></div>
+          <button id="tab-batch" type="button" class="mode-tab-btn">
+            <span>Batch Migrate</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Single Lookup View (Default) -->
+      <div id="view-single" class="space-y-6">
+        <!-- Search Controls Box -->
+        <div class="relative">
+          <input 
+            type="text" 
+            id="search-input" 
+            placeholder="Search package (e.g. bat, ripgrep, neovim, haskell typst)..." 
+            class="w-full pl-12 pr-4 py-3.5 bg-zinc-900/90 border border-zinc-700/80 rounded-2xl text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono text-base transition-colors shadow-lg"
+            autocomplete="off"
+            spellcheck="false"
+          >
+          <span class="absolute left-4 top-4 text-zinc-500 pointer-events-none text-lg">🔍</span>
+        </div>
+
+        <!-- Live Search Suggestions Bar (Inline, non-overlapping) -->
+        <div id="suggestions-container" class="hidden">
+          <div id="suggestions-list" class="flex flex-wrap items-center gap-1.5"></div>
+        </div>
+
+        <!-- Minimal Distro Filter Bar directly under search -->
+        <div class="flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+          <div id="distro-pills" class="flex flex-wrap items-center gap-1.5"></div>
+          <div class="flex items-center gap-2">
+            <button id="btn-toggle-all-repos" type="button" class="text-zinc-400 hover:text-emerald-400 transition-colors cursor-pointer underline underline-offset-2">
+              Show all repos
+            </button>
+          </div>
+        </div>
+
+        <!-- Results Container -->
+        <div id="results-container" class="hidden space-y-4">
+          <div id="results-summary" class="flex items-center justify-between px-1 text-xs font-mono text-zinc-400">
+            <div class="flex items-center gap-2">
+              <span id="results-effname" class="text-white font-bold text-sm tracking-tight font-mono"></span>
+              <span id="results-version" class="px-2 py-0.5 rounded bg-zinc-800/80 text-zinc-300 hidden"></span>
+            </div>
+            <span id="results-targets" class="text-zinc-500"></span>
+          </div>
+          <div id="results-empty" class="hidden py-10 text-center text-zinc-500 text-sm font-mono"></div>
+          <div id="results-table-wrap" class="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 overflow-hidden shadow-xl">
+            <table class="w-full text-left text-sm font-mono text-zinc-200">
+              <tbody id="results-table" class="divide-y divide-zinc-800/40"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Batch Migrate View -->
+      <div id="view-batch" class="hidden space-y-6">
+        <!-- Distro Selectors -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-1.5">
+            <label for="batch-src-repo" class="block text-xs font-mono text-zinc-400">Source Repository (From)</label>
+            <select id="batch-src-repo" class="batch-select"></select>
+          </div>
+          <div class="space-y-1.5">
+            <label for="batch-dst-repo" class="block text-xs font-mono text-zinc-400">Target Repository (To)</label>
+            <select id="batch-dst-repo" class="batch-select"></select>
+          </div>
+        </div>
+
+        <!-- Package List Input -->
+        <div class="space-y-1.5">
+          <label for="batch-input" class="block text-xs font-mono text-zinc-400">Package List</label>
+          <textarea 
+            id="batch-input" 
+            placeholder="Paste package names separated by spaces, commas, or newlines&#10;e.g. bat ripgrep neovim curl git tmux..."
+            class="batch-textarea"
+          ></textarea>
+        </div>
+
+        <!-- Action / Status Bar -->
+        <div class="flex items-center justify-between gap-3 text-xs font-mono">
+          <button 
+            id="batch-resolve-btn" 
+            type="button" 
+            class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold transition-colors cursor-pointer shadow-md inline-flex items-center gap-2"
+          >
+            <span>Translate Packages</span>
+            <span>→</span>
+          </button>
+          <div id="batch-status-msg" class="text-zinc-500"></div>
+        </div>
+
+        <!-- Batch Results Section -->
+        <div id="batch-results-container" class="hidden">
+          <div class="batch-results-header text-xs font-mono">
+            <div id="batch-stats" class="text-zinc-300 font-medium">
+              <span id="batch-stats-count" class="text-emerald-400 font-bold"></span>
+              <span id="batch-stats-pct" class="text-zinc-400"></span>
+              <span class="text-zinc-500 mx-1">•</span>
+              <span id="batch-stats-from" class="text-zinc-300"></span>
+              <span class="text-zinc-500">→</span>
+              <span id="batch-stats-to" class="text-emerald-400"></span>
+            </div>
+            <div>
+              <button id="batch-copy-list" type="button" class="btn-copy-list">
+                Copy package list
+              </button>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 overflow-hidden shadow-xl">
+            <table class="w-full text-left text-sm font-mono text-zinc-200">
+              <tbody id="batch-results-table" class="divide-y divide-zinc-800/40"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-zinc-800/80 py-6 text-xs text-zinc-400 bg-zinc-950/80">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-3">
+      <div>
+        Data sourced daily from <a href="https://repology.org" target="_blank" rel="noopener" class="text-zinc-400 hover:text-zinc-200 underline underline-offset-2">Repology</a> (CC-BY-SA 4.0).
+      </div>
+      <div class="flex items-center gap-4">
+        <button id="clear-cache-btn" class="text-zinc-400 hover:text-red-400 transition-colors underline underline-offset-2">
+          Clear local database cache
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- DOM Templates -->
+  <template id="tmpl-single-row">
+    <tr class="hover:bg-zinc-800/25 transition-colors">
+      <td class="px-4 py-3 font-sans font-medium text-zinc-200 col-distro">
+        <div class="flex items-center gap-2">
+          <span class="row-label"></span>
+          <span class="row-repo text-[10px] text-zinc-500 font-mono"></span>
+        </div>
+      </td>
+      <td class="px-4 py-3 font-mono">
+        <div class="row-packaged flex items-center gap-2">
+          <span class="row-pkg font-bold text-emerald-400"></span>
+          <span class="row-aur badge-aur hidden">AUR</span>
+        </div>
+        <span class="row-unpackaged text-zinc-500 text-xs italic hidden">—</span>
+      </td>
+      <td class="px-4 py-3 text-zinc-400 text-xs row-version"></td>
+      <td class="px-4 py-3 col-action">
+        <button type="button" class="btn-copy">Copy</button>
+      </td>
+    </tr>
+  </template>
+
+  <template id="tmpl-batch-row">
+    <tr class="hover:bg-zinc-800/25 transition-colors">
+      <td class="px-4 py-3 font-mono font-medium text-zinc-200 row-input"></td>
+      <td class="px-2 py-3 text-zinc-600 text-center w-8 select-none">→</td>
+      <td class="px-4 py-3 font-mono">
+        <div class="row-resolved flex items-center gap-2">
+          <span class="row-target font-bold text-emerald-400"></span>
+          <span class="row-aur badge-aur hidden">AUR</span>
+          <span class="row-version text-zinc-500 text-xs font-normal"></span>
+        </div>
+        <span class="row-unresolved text-zinc-500 text-xs italic hidden"></span>
+      </td>
+      <td class="px-4 py-3 col-action text-right">
+        <button type="button" class="btn-copy">Copy</button>
+      </td>
+    </tr>
+  </template>
+
+  <template id="tmpl-empty-row">
+    <tr>
+      <td colspan="4" class="px-4 py-8 text-center text-zinc-500 empty-msg"></td>
+    </tr>
+  </template>
+
+  <template id="tmpl-suggestion-chip">
+    <button type="button" class="suggestion-chip">
+      <span class="chip-name"></span>
+      <span class="chip-count text-[10px] text-zinc-500 font-normal"></span>
+    </button>
+  </template>
+
+  <template id="tmpl-distro-pill">
+    <button type="button" class="distro-pill"></button>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
