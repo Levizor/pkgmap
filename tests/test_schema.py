@@ -14,13 +14,11 @@ def test_package_record_model() -> None:
         package_name="batcat",
         effname="bat",
         version="0.24.0",
-        category="utils",
     )
     assert pkg.repo == "debian_12"
     assert pkg.package_name == "batcat"
     assert pkg.effname == "bat"
     assert pkg.version == "0.24.0"
-    assert pkg.category == "utils"
 
 
 def test_repology_row_conversion_to_package_record() -> None:
@@ -43,7 +41,6 @@ def test_repology_row_conversion_to_package_record() -> None:
     assert pkg.package_name == "bat"
     assert pkg.effname == "bat"
     assert pkg.version == "0.24.0"
-    assert pkg.category == "tools"
 
 
 def test_repology_row_nix_attribute_resolution() -> None:

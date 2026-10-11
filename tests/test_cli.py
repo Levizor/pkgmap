@@ -17,11 +17,11 @@ def test_cli_resolve_success(tmp_path: Path) -> None:
     conn.executescript("""
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, category TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
     CREATE INDEX idx_effname ON packages (effname);
 
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10), (2, 'arch', 'arch', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0', 'utils'), (2, 'bat', 'bat', '0.24.0', NULL);
+    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0'), (2, 'bat', 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -51,11 +51,11 @@ def test_cli_resolve_json(tmp_path: Path) -> None:
     conn.executescript("""
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, category TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
     CREATE INDEX idx_effname ON packages (effname);
 
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10), (2, 'arch', 'arch', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0', 'utils'), (2, 'bat', 'bat', '0.24.0', NULL);
+    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0'), (2, 'bat', 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -78,7 +78,6 @@ def test_cli_resolve_json(tmp_path: Path) -> None:
     data = json.loads(result.stdout)
     assert len(data) == 1
     assert data[0]["name"] == "bat"
-    assert data[0]["install_name"] == "bat"
 
 
 def test_cli_resolve_not_found(tmp_path: Path) -> None:
@@ -89,7 +88,7 @@ def test_cli_resolve_not_found(tmp_path: Path) -> None:
     conn.executescript("""
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, category TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
     """)
     conn.commit()
     conn.close()
@@ -119,7 +118,7 @@ def test_cli_repos(tmp_path: Path) -> None:
     conn.executescript("""
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, category TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
 
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 50000);
     """)
@@ -140,11 +139,11 @@ def test_cli_resolve_project_implicit(tmp_path: Path) -> None:
     conn.executescript("""
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, category TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
     CREATE INDEX idx_effname ON packages (effname);
 
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0', 'utils');
+    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -166,11 +165,11 @@ def test_cli_resolve_project_explicit_flag(tmp_path: Path) -> None:
     conn.executescript("""
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, category TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
     CREATE INDEX idx_effname ON packages (effname);
 
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0', 'utils');
+    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -201,11 +200,11 @@ def test_cli_resolve_all_repos_without_flags(tmp_path: Path) -> None:
     conn.executescript("""
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, category TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
     CREATE INDEX idx_effname ON packages (effname);
 
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10), (2, 'arch', 'arch', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0', 'utils'), (2, 'bat', 'bat', '0.24.0', NULL);
+    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0'), (2, 'bat', 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -227,11 +226,11 @@ def test_cli_resolve_all_repos_with_from(tmp_path: Path) -> None:
     conn.executescript("""
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, category TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
     CREATE INDEX idx_effname ON packages (effname);
 
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10), (2, 'arch', 'arch', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0', 'utils'), (2, 'bat', 'bat', '0.24.0', NULL);
+    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0'), (2, 'bat', 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -253,11 +252,11 @@ def test_cli_resolve_all_repos_json(tmp_path: Path) -> None:
     conn.executescript("""
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, category TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
     CREATE INDEX idx_effname ON packages (effname);
 
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10), (2, 'arch', 'arch', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0', 'utils'), (2, 'bat', 'bat', '0.24.0', NULL);
+    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0'), (2, 'bat', 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -281,7 +280,7 @@ def test_cli_resolve_all_repos_not_found(tmp_path: Path) -> None:
     conn.executescript("""
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, category TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
     """)
     conn.commit()
     conn.close()

@@ -63,8 +63,8 @@ def test_do_fn_filters_shadow_and_populates_repo_families() -> None:
     packages = list(do_fn(raw_records, repo_families))
 
     assert len(packages) == 2
-    assert packages[0] == PackageRecord("debian_12", "batcat", "bat", "0.24.0", "utils")
-    assert packages[1] == PackageRecord("arch", "bat", "bat", "0.24.0", "extra")
+    assert packages[0] == PackageRecord("debian_12", "batcat", "bat", "0.24.0")
+    assert packages[1] == PackageRecord("arch", "bat", "bat", "0.24.0")
 
     assert repo_families == {
         "debian_12": "debian",

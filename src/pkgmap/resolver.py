@@ -94,7 +94,7 @@ def resolve_batch_all(
 
             if src_repo:
                 sql = f"""
-                SELECT src.package_name, dst.package_name, dst.version, dst.category, dst_repo.name, dst_repo.family
+                SELECT src.package_name, dst.package_name, dst.version, dst_repo.name, dst_repo.family
                 FROM packages src
                 JOIN repositories src_repo ON src.repo_id = src_repo.id
                 JOIN packages dst ON src.effname = dst.effname
@@ -104,7 +104,7 @@ def resolve_batch_all(
                 params: list[str] = [src_repo, *chunk]
             else:
                 sql = f"""
-                SELECT dst.effname, dst.package_name, dst.version, dst.category, dst_repo.name, dst_repo.family
+                SELECT dst.effname, dst.package_name, dst.version, dst_repo.name, dst_repo.family
                 FROM packages dst
                 JOIN repositories dst_repo ON dst.repo_id = dst_repo.id
                 WHERE dst.effname IN ({placeholders})
@@ -125,9 +125,8 @@ def resolve_batch_all(
                         PackageResolution(
                             name=row[1],
                             version=row[2],
-                            category=row[3],
-                            repo=row[4],
-                            repo_family=row[5],
+                            repo=row[3],
+                            repo_family=row[4],
                         )
                     )
         return results

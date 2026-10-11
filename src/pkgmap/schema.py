@@ -21,20 +21,13 @@ class PackageRecord(NamedTuple):
     package_name: str  # native package name
     effname: str  # unique project name, same for all packages
     version: str | None = None
-    category: str | None = None
 
 
 class PackageResolution(NamedTuple):
     name: str
     version: str | None = None
-    category: str | None = None
     repo: str = ""
     repo_family: str = ""
-
-    @property
-    def install_name(self) -> str:
-        """The canonical package identifier for package managers or declarative configs."""
-        return self.name
 
 
 # Upstream Repology PostgreSQL schema definition:
@@ -74,5 +67,4 @@ class RepologyPackageRow(NamedTuple):
             package_name=package_name,
             effname=self.effname,
             version=self.version,
-            category=self.category,
         )
