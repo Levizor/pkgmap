@@ -14,8 +14,7 @@ from pkgmap.db import (
 from pkgmap.resolver import (
     get_missing_repositories,
     list_repositories,
-    resolve_all,
-    resolve_project,
+    resolve_batch_all,
 )
 
 cli_app = typer.Typer(
@@ -54,10 +53,26 @@ def cli_callback(
                 handler.setLevel(logging.DEBUG)
 
 
+def _format_not_found_msg(
+    package: str,
+    from_repo: str | None,
+    to_repo: str | None,
+    project: bool,
+) -> str:
+    if from_repo and not project:
+        if to_repo:
+            return f"No equivalent package found for '{package}' from '{from_repo}' to '{to_repo}'."
+        return f"No equivalent package found for '{package}' from '{from_repo}'."
+    if to_repo:
+        return f"No equivalent package found for project '{package}' in '{to_repo}'."
+    return f"No equivalent package found for project '{package}'."
+
+
 @cli_app.command(name="resolve")
 def resolve_cmd(
-    package: Annotated[
-        str, typer.Argument(help="Package or upstream project name to resolve")
+    packages: Annotated[
+        list[str],
+        typer.Argument(help="Package or upstream project name(s) to resolve"),
     ],
     to_repo: Annotated[
         str | None,
@@ -104,7 +119,7 @@ def resolve_cmd(
         typer.Option("--db-path", help="Custom path to pkgmap.db database"),
     ] = None,
 ) -> None:
-    """Resolve a package name across Linux distributions."""
+    """Resolve one or more package names across Linux distributions."""
     if project and from_repo:
         typer.secho(
             "Error: Cannot specify both --from and --project.",
@@ -113,29 +128,27 @@ def resolve_cmd(
         raise typer.Exit(code=2)
 
     variant = _select_variant(core=core, full=full)
+    effective_from = from_repo if not project else None
+    batch_results = resolve_batch_all(
+        packages,
+        from_repo=effective_from,
+        to_repo=to_repo,
+        db_path=db_path,
+    )
 
-    if from_repo and not project:
-        results = resolve_all(
-            package, from_repo=from_repo, to_repo=to_repo, db_path=db_path
-        )
-    else:
-        results = resolve_project(package, to_repo=to_repo, db_path=db_path)
+    is_batch = len(packages) > 1
+    any_found = any(batch_results.get(pkg) for pkg in packages)
 
-    if not results:
+    if not any_found:
         if json_output:
-            typer.echo(json.dumps([]))
+            empty_payload: list[object] | dict[str, list[object]] = (
+                {pkg: [] for pkg in packages} if is_batch else []
+            )
+            typer.echo(json.dumps(empty_payload, indent=2 if is_batch else None))
         else:
-            if from_repo and not project:
-                if to_repo:
-                    msg = f"No equivalent package found for '{package}' from '{from_repo}' to '{to_repo}'."
-                else:
-                    msg = f"No equivalent package found for '{package}' from '{from_repo}'."
-            else:
-                if to_repo:
-                    msg = f"No equivalent package found for project '{package}' in '{to_repo}'."
-                else:
-                    msg = f"No equivalent package found for project '{package}'."
-            typer.secho(msg, fg=typer.colors.YELLOW)
+            for pkg in packages:
+                msg = _format_not_found_msg(pkg, from_repo, to_repo, project)
+                typer.secho(msg, fg=typer.colors.YELLOW)
 
             requested_repos = [r for r in (from_repo, to_repo) if r]
             missing_repos = get_missing_repositories(requested_repos, db_path=db_path)
@@ -148,25 +161,52 @@ def resolve_cmd(
                 )
         raise typer.Exit(code=1)
 
-    items_to_show = results if (all_matches or to_repo is None) else results[:1]
-
     if json_output:
-        data = [
-            {
-                "name": r.name,
-                "version": r.version,
-                "repo": r.repo,
-                "repo_family": r.repo_family,
+        if not is_batch:
+            pkg = packages[0]
+            matches = batch_results.get(pkg, [])
+            items = matches if (all_matches or to_repo is None) else matches[:1]
+            data = [
+                {
+                    "name": r.name,
+                    "version": r.version,
+                    "repo": r.repo,
+                    "repo_family": r.repo_family,
+                }
+                for r in items
+            ]
+            typer.echo(json.dumps(data, indent=2))
+        else:
+            batch_data = {
+                pkg: [
+                    {
+                        "name": r.name,
+                        "version": r.version,
+                        "repo": r.repo,
+                        "repo_family": r.repo_family,
+                    }
+                    for r in (
+                        batch_results.get(pkg, [])
+                        if (all_matches or to_repo is None)
+                        else batch_results.get(pkg, [])[:1]
+                    )
+                ]
+                for pkg in packages
             }
-            for r in items_to_show
-        ]
-        typer.echo(json.dumps(data, indent=2))
+            typer.echo(json.dumps(batch_data, indent=2))
         return
 
-    for res in items_to_show:
-        version_str = f" ({res.version})" if res.version else ""
-        repo_prefix = f"{res.repo}: " if to_repo is None else ""
-        typer.echo(f"{repo_prefix}{res.name}{version_str}")
+    for pkg in packages:
+        matches = batch_results.get(pkg, [])
+        items_to_show = matches if (all_matches or to_repo is None) else matches[:1]
+        if not items_to_show:
+            typer.secho(f"{pkg} -> not found", fg=typer.colors.YELLOW)
+            continue
+        for res in items_to_show:
+            version_str = f" ({res.version})" if res.version else ""
+            repo_prefix = f"{res.repo}: " if to_repo is None else ""
+            pkg_prefix = f"{pkg} -> " if is_batch else ""
+            typer.echo(f"{pkg_prefix}{repo_prefix}{res.name}{version_str}")
 
 
 @cli_app.command(name="update")

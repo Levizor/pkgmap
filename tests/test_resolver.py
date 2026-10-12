@@ -236,3 +236,30 @@ def test_resolve_batch_projects(mock_db: Path) -> None:
 def test_resolve_batch_empty(mock_db: Path) -> None:
     res = resolve_batch([], db_path=mock_db)
     assert res == {}
+
+
+def test_resolve_fallback_to_source_project_name_and_ranking(tmp_path: Path) -> None:
+    db_path = tmp_path / "gcc_test.sqlite"
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
+    CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
+    CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
+    CREATE INDEX idx_package_name ON packages (package_name);
+
+    INSERT INTO projects VALUES (1, 'gcc-wrapper'), (2, 'gcc');
+    INSERT INTO repositories VALUES (1, 'nix_unstable', 'nix', 100), (2, 'gnuguix', 'gnuguix', 100);
+    INSERT INTO packages VALUES
+        (1, 1, 'gcc', '15.2.0'),
+        (2, 1, 'gcc-unwrapped', '15.2.0'),
+        (2, 2, 'gcc-bootstrap', '15.2.0'),
+        (2, 2, 'gcc', '15.2.0');
+    """)
+    conn.commit()
+    conn.close()
+
+    res = resolve("gcc", from_repo="nix_unstable", to_repo="gnuguix", db_path=db_path)
+    assert res is not None
+    assert res.name == "gcc"
+    assert res.version == "15.2.0"
