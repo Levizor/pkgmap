@@ -11,7 +11,7 @@ from pathlib import Path
 
 import zstandard as zstd
 
-from pkgmap.consumer import SQLiteConsumer
+from pkgmap.consumer import SQLiteConsumer, build_core_database
 from pkgmap.downloader import download_file
 from pkgmap.logger import setup_logger
 from pkgmap.schema import (
@@ -181,10 +181,18 @@ def generate_release_notes(
     total_packages: int,
     total_repos: int,
     output_path: Path,
+    core_packages: int | None = None,
+    core_repos: int | None = None,
 ) -> str:
     """Generate compact markdown release notes for GitHub Releases."""
+    core_info = (
+        f" · Core: {core_packages:,} packages ({core_repos} repositories)"
+        if core_packages is not None and core_repos is not None
+        else ""
+    )
     content = (
         f"> **{dump_date} snapshot**: {total_packages:,} packages · {total_repos} repositories"
+        f"{core_info}"
         f" · Sourced from [Repology](https://repology.org) ([CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/))\n"
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -197,6 +205,8 @@ def main(
     dump_file: Path | None = None,
     dump_link: str | None = None,
     output_file: Path = Path("pkgmap.db"),
+    core_output_file: Path | None = None,
+    repos_config: Path | None = None,
     batch_size: int = 50_000,
     release_notes: Path | None = None,
     dump_date: str | None = None,
@@ -208,6 +218,7 @@ def main(
                     'dump_file': dump_file,
                     'dump_link': dump_link,
                     'output_file': output_file,
+                    'core_output_file': core_output_file,
                 }
             )
         }"
@@ -227,8 +238,18 @@ def main(
         raise FileNotFoundError(f"Dump file does not exist: {dump_file}")
 
     logger.info("Starting the pipeline!")
-    consumer = SQLiteConsumer(output_file, batch_size)
+    consumer = SQLiteConsumer(output_file, batch_size, repos_config=repos_config)
     run_pipeline(dump_file, consumer)
+
+    core_packages: int | None = None
+    core_repos: int | None = None
+    if core_output_file:
+        core_packages, core_repos = build_core_database(
+            full_db_path=output_file,
+            core_db_path=core_output_file,
+            config_path=repos_config,
+        )
+
     logger.info("Finished!")
 
     if release_notes:
@@ -237,14 +258,21 @@ def main(
             total_packages=consumer.total_records,
             total_repos=len(consumer.repo_ids),
             output_path=release_notes,
+            core_packages=core_packages,
+            core_repos=core_repos,
         )
 
-    set_github_output(
-        packages=str(consumer.total_records),
-        repos=str(len(consumer.repo_ids)),
-        date=dump_date,
-        tag=f"db-{dump_date}",
-    )
+    outputs = {
+        "packages": str(consumer.total_records),
+        "repos": str(len(consumer.repo_ids)),
+        "date": dump_date,
+        "tag": f"db-{dump_date}",
+    }
+    if core_packages is not None and core_repos is not None:
+        outputs["core_packages"] = str(core_packages)
+        outputs["core_repos"] = str(core_repos)
+
+    set_github_output(**outputs)
 
     return consumer
 

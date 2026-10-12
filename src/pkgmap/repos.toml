@@ -1,0 +1,38 @@
+[core]
+repositories = [
+    "nix_unstable",
+    "arch",
+    "aur",
+    "debian_unstable",
+    "ubuntu",
+    "fedora",
+    "alpine_edge",
+    "opensuse_tumbleweed",
+    "gentoo",
+    "void_x86_64",
+    "freebsd",
+    "homebrew",
+    "macports",
+    "gnuguix",
+    "pkgsrc_current",
+    "chimera",
+    "solus",
+    "openbsd",
+    "epel",
+    "termux",
+]
+
+[aliases]
+nix = "nix_unstable"
+nixpkgs = "nix_unstable"
+archlinux = "arch"
+debian = "debian_unstable"
+deb = "debian_unstable"
+ubuntu = "ubuntu"
+fedora = "fedora"
+alpine = "alpine_edge"
+opensuse = "opensuse_tumbleweed"
+void = "void_x86_64"
+brew = "homebrew"
+guix = "gnuguix"
+pkgsrc = "pkgsrc_current"

@@ -41,16 +41,22 @@ jobs:
           uv run pkgmap-pipeline build \
             -i "${{ steps.dump.outputs.dump_path }}" \
             -o pkgmap.db \
+            -c pkgmap-core.db \
             --dump-date "${{ steps.dump.outputs.date }}" \
             --release-notes release_notes.md \
             --batch-size ${{ inputs.batch_size || '50000' }}
 
-      - name: Compress database and generate checksums
+      - name: Compress databases and generate checksums
         run: |
           sha256sum pkgmap.db > pkgmap.db.sha256
           zstd -19 -T0 pkgmap.db -o pkgmap.db.zst
           zstd -t pkgmap.db.zst
           sha256sum pkgmap.db.zst > pkgmap.db.zst.sha256
+
+          sha256sum pkgmap-core.db > pkgmap-core.db.sha256
+          zstd -19 -T0 pkgmap-core.db -o pkgmap-core.db.zst
+          zstd -t pkgmap-core.db.zst
+          sha256sum pkgmap-core.db.zst > pkgmap-core.db.zst.sha256
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -64,6 +70,10 @@ jobs:
             pkgmap.db.sha256
             pkgmap.db.zst
             pkgmap.db.zst.sha256
+            pkgmap-core.db
+            pkgmap-core.db.sha256
+            pkgmap-core.db.zst
+            pkgmap-core.db.zst.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

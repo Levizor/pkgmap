@@ -240,7 +240,8 @@ def test_pipeline_main_with_release_notes(tmp_path: Path, monkeypatch) -> None:
     # Create sample dump
     sample_sql = (
         "COPY public.packages (repo, family, visiblename, effname, version, category, shadow) FROM stdin;\n"
-        "debian_12\tdebian\tbatcat\tbat\t0.24.0\tutils\tf\n"
+        "debian_unstable\tdebian\tbatcat\tbat\t0.24.0\tutils\tf\n"
+        "haikuports_master\thaikuports\tbat\tbat\t0.24.0\tutils\tf\n"
         "\\.\n"
     )
     dump_file = tmp_path / "repology-database-dump-2026-10-09.sql.zst"
@@ -248,6 +249,7 @@ def test_pipeline_main_with_release_notes(tmp_path: Path, monkeypatch) -> None:
     dump_file.write_bytes(compressor.compress(sample_sql.encode("utf-8")))
 
     output_db = tmp_path / "out.sqlite"
+    core_db = tmp_path / "out-core.sqlite"
     release_notes = tmp_path / "notes.md"
     gh_output = tmp_path / "gh.txt"
     monkeypatch.setenv("GITHUB_OUTPUT", str(gh_output))
@@ -255,11 +257,18 @@ def test_pipeline_main_with_release_notes(tmp_path: Path, monkeypatch) -> None:
     consumer = main(
         dump_file=dump_file,
         output_file=output_db,
+        core_output_file=core_db,
         batch_size=10,
         release_notes=release_notes,
     )
 
-    assert consumer.total_records == 1
+    assert consumer.total_records == 2
+    assert core_db.exists()
     assert release_notes.exists()
-    assert "2026-10-09" in release_notes.read_text()
-    assert "tag=db-2026-10-09" in gh_output.read_text()
+    notes_text = release_notes.read_text()
+    assert "2026-10-09" in notes_text
+    assert "Core: 1 packages (1 repositories)" in notes_text
+    gh_text = gh_output.read_text()
+    assert "tag=db-2026-10-09" in gh_text
+    assert "core_packages=1" in gh_text
+    assert "core_repos=1" in gh_text

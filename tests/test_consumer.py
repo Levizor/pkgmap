@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-from pkgmap.consumer import SQLiteConsumer
+from pkgmap.consumer import SQLiteConsumer, build_core_database, load_repos_config
 from pkgmap.schema import PackageRecord, RepoFamilyMap
 
 
@@ -77,6 +77,10 @@ def test_sqlite_consumer_ingestion(tmp_path: Path) -> None:
     projects = [r[0] for r in cursor.fetchall()]
     assert projects == ["bat", "ripgrep"]
 
+    # Check repository_aliases populated from repos.toml
+    cursor.execute("SELECT target_repo FROM repository_aliases WHERE alias = 'nixpkgs'")
+    assert cursor.fetchone() == ("nix_unstable",)
+
     # Check index existence
     cursor.execute(
         "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_package_name'"
@@ -98,4 +102,66 @@ def test_sqlite_consumer_ingestion(tmp_path: Path) -> None:
     result = cursor.fetchone()
     assert result == ("bat", "0.24.0")
 
+    conn.close()
+
+
+def test_load_default_repos_config() -> None:
+    core_repos, aliases = load_repos_config()
+    assert len(core_repos) == 20
+    assert "nix_unstable" in core_repos
+    assert "debian_unstable" in core_repos
+    assert "fedora" in core_repos
+    assert aliases["nixpkgs"] == "nix_unstable"
+    assert aliases["debian"] == "debian_unstable"
+
+
+def test_build_core_database_filters_repos_and_projects(tmp_path: Path) -> None:
+    full_db = tmp_path / "pkgmap.db"
+    core_db = tmp_path / "pkgmap-core.db"
+
+    consumer = SQLiteConsumer(output_file=full_db)
+    records = [
+        PackageRecord("debian_unstable", "batcat", "bat", "0.24.0"),
+        PackageRecord("nix_unstable", "bat", "bat", "0.24.0"),
+        # Versioned prefix: fedora_42 has 2 packages, fedora_41 has 1 -> fedora_42 selected
+        PackageRecord("fedora_42", "bat", "bat", "0.24.0"),
+        PackageRecord("fedora_42", "ripgrep", "ripgrep", "14.1.0"),
+        PackageRecord("fedora_41", "bat", "bat", "0.23.0"),
+        # Non-core repository with an exclusive project that should be pruned in core
+        PackageRecord("haikuports_master", "haiku_only_pkg", "haiku-only", "1.0"),
+    ]
+    repo_families: RepoFamilyMap = {
+        "debian_unstable": "debian",
+        "nix_unstable": "nix",
+        "fedora_42": "fedora",
+        "fedora_41": "fedora",
+        "haikuports_master": "haikuports",
+    }
+    consumer(records, repo_families)
+
+    core_packages, core_repos = build_core_database(full_db, core_db)
+    assert core_repos == 3
+    assert core_packages == 4
+
+    conn = sqlite3.connect(core_db)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT name FROM repositories ORDER BY name")
+    assert [r[0] for r in cursor.fetchall()] == [
+        "debian_unstable",
+        "fedora_42",
+        "nix_unstable",
+    ]
+
+    cursor.execute("SELECT name FROM projects ORDER BY name")
+    assert [r[0] for r in cursor.fetchall()] == ["bat", "ripgrep"]
+
+    cursor.execute(
+        "SELECT alias, target_repo FROM repository_aliases WHERE alias IN ('debian', 'fedora', 'nixpkgs') ORDER BY alias"
+    )
+    assert cursor.fetchall() == [
+        ("debian", "debian_unstable"),
+        ("fedora", "fedora_42"),
+        ("nixpkgs", "nix_unstable"),
+    ]
     conn.close()
