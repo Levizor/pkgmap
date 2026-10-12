@@ -8,7 +8,6 @@ const POPULAR_DISTROS = [
   { id: "alpine", label: "Alpine", preferred: "alpine_edge", prefixes: ["alpine"] },
   { id: "void", label: "Void", preferred: "void_x86_64", prefixes: ["void"] },
   { id: "opensuse", label: "openSUSE", preferred: "opensuse_tumbleweed", prefixes: ["opensuse"] },
-  { id: "freebsd", label: "FreeBSD", preferred: "freebsd", prefixes: ["freebsd"] },
   { id: "gentoo", label: "Gentoo", preferred: "gentoo", prefixes: ["gentoo"] },
 ];
 

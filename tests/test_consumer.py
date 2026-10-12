@@ -107,7 +107,7 @@ def test_sqlite_consumer_ingestion(tmp_path: Path) -> None:
 
 def test_load_default_repos_config() -> None:
     core_repos, aliases = load_repos_config()
-    assert len(core_repos) == 20
+    assert len(core_repos) == 10
     assert "nix_unstable" in core_repos
     assert "debian_unstable" in core_repos
     assert "fedora" in core_repos
