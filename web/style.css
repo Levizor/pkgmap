@@ -160,6 +160,41 @@ body {
   opacity: 0.8;
 }
 
+/* Database Variant Switcher */
+.db-variant-switcher {
+  display: inline-flex;
+  align-items: center;
+  background-color: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.5rem;
+  padding: 0.125rem;
+}
+
+.db-variant-btn {
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.375rem;
+  font-size: 0.7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 500;
+  color: #a1a1aa;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.db-variant-btn:hover {
+  color: #f4f4f5;
+}
+
+.db-variant-btn.active {
+  color: #34d399;
+  background-color: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+  font-weight: 600;
+}
+
 /* Batch Controls */
 .batch-textarea {
   width: 100%;

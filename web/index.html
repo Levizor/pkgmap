@@ -25,6 +25,14 @@
       </div>
 
       <div class="flex items-center gap-3 sm:gap-4 text-sm shrink-0">
+        <div
+          id="db-variant-switcher"
+          class="db-variant-switcher"
+          title="Switch between Core database (top 20 repositories, ~11.5 MB) and Full database (all repositories, ~37 MB)"
+        >
+          <button type="button" data-variant="core" class="db-variant-btn active">Core DB</button>
+          <button type="button" data-variant="full" class="db-variant-btn">Full DB</button>
+        </div>
         <a 
           href="https://pypi.org/project/pkgmap-py/" 
           target="_blank" 

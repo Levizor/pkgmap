@@ -1,18 +1,26 @@
 // Minimalist, fast cross-distribution package lookup
 const POPULAR_DISTROS = [
   { id: "arch", label: "Arch (+ AUR)", batchLabel: "Arch Linux (+ AUR)", batchValue: "arch+aur", preferred: "arch", prefixes: ["arch", "aur"] },
-  { id: "debian", label: "Debian", preferred: "debian_12", prefixes: ["debian"] },
-  { id: "ubuntu", label: "Ubuntu", preferred: "ubuntu_24_04", prefixes: ["ubuntu"] },
-  { id: "fedora", label: "Fedora", preferred: "fedora_41", prefixes: ["fedora"] },
+  { id: "debian", label: "Debian", preferred: "debian_unstable", prefixes: ["debian"] },
+  { id: "ubuntu", label: "Ubuntu", preferred: "ubuntu", prefixes: ["ubuntu"] },
+  { id: "fedora", label: "Fedora", preferred: "fedora", prefixes: ["fedora"] },
   { id: "nixpkgs", label: "Nixpkgs", preferred: "nix_unstable", prefixes: ["nix"] },
-  { id: "alpine", label: "Alpine", preferred: "alpine_3_20", prefixes: ["alpine"] },
+  { id: "alpine", label: "Alpine", preferred: "alpine_edge", prefixes: ["alpine"] },
   { id: "void", label: "Void", preferred: "void_x86_64", prefixes: ["void"] },
   { id: "opensuse", label: "openSUSE", preferred: "opensuse_tumbleweed", prefixes: ["opensuse"] },
   { id: "freebsd", label: "FreeBSD", preferred: "freebsd", prefixes: ["freebsd"] },
   { id: "gentoo", label: "Gentoo", preferred: "gentoo", prefixes: ["gentoo"] },
 ];
 
-let worker = null, suggestId = 0, matrixId = 0, batchId = 0;
+const DB_VARIANT_STORAGE_KEY = "pkgmap_db_variant";
+let currentDbVariant = "core";
+try {
+  if (localStorage.getItem(DB_VARIANT_STORAGE_KEY) === "full") {
+    currentDbVariant = "full";
+  }
+} catch (_) {}
+
+let worker = null, suggestId = 0, matrixId = 0, batchId = 0, uiInitialized = false;
 let suggestDebounce = null, searchDebounce = null, currentSuggestions = [];
 let activeDistroIds = new Set(POPULAR_DISTROS.map(d => d.id)), showAllRepos = false, allFilterQuery = "", currentPackageData = null;
 let allRepositoriesList = [], lastBatchResult = null;
@@ -35,7 +43,7 @@ const elStatusContainer = $("status-container"), elStatusMessage = $("status-mes
   elBatchStats = $("batch-stats"), elBatchStatsCount = $("batch-stats-count"),
   elBatchStatsPct = $("batch-stats-pct"), elBatchStatsFrom = $("batch-stats-from"),
   elBatchStatsTo = $("batch-stats-to"), elBatchResultsTable = $("batch-results-table"),
-  elBatchCopyList = $("batch-copy-list");
+  elBatchCopyList = $("batch-copy-list"), elDbVariantSwitcher = $("db-variant-switcher");
 
 // DOM Templates
 const tmplSingleRow = $("tmpl-single-row"), tmplBatchRow = $("tmpl-batch-row"),
@@ -52,7 +60,55 @@ function safeFocus(el) {
   }
 }
 
+function updateVariantButtons(variant) {
+  if (!elDbVariantSwitcher) return;
+  elDbVariantSwitcher.querySelectorAll("button[data-variant]").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.variant === variant);
+  });
+}
+
+function syncPopularDistroPreferredRepos() {
+  for (const d of POPULAR_DISTROS) {
+    if (d.id === "arch") continue;
+    const exact = allRepositoriesList.find(r => r.name === d.preferred);
+    if (exact) {
+      d.resolvedRepo = exact.name;
+      continue;
+    }
+    const prefixMatch = allRepositoriesList.find(r =>
+      d.prefixes.some(pre => r.name === pre || r.name.startsWith(pre + "_"))
+    );
+    d.resolvedRepo = prefixMatch ? prefixMatch.name : d.preferred;
+  }
+}
+
+function initVariantSwitcher() {
+  updateVariantButtons(currentDbVariant);
+  if (!elDbVariantSwitcher) return;
+  elDbVariantSwitcher.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-variant]");
+    if (!btn || !worker) return;
+    const targetVariant = btn.dataset.variant === "full" ? "full" : "core";
+    if (targetVariant === currentDbVariant) return;
+
+    currentDbVariant = targetVariant;
+    try {
+      localStorage.setItem(DB_VARIANT_STORAGE_KEY, currentDbVariant);
+    } catch (_) {}
+    updateVariantButtons(currentDbVariant);
+
+    elAppContainer.classList.add("hidden");
+    elStatusContainer.classList.remove("hidden");
+    elProgressBar.classList.add("hidden");
+    elProgressFill.style.width = "0%";
+    elStatusMessage.textContent = `Switching to ${currentDbVariant === "core" ? "Core" : "Full"} database...`;
+    worker.postMessage({ type: "switch_variant", variant: currentDbVariant });
+  });
+}
+
 function initWorker() {
+  initVariantSwitcher();
+
   if (window.location.protocol === "file:") {
     $("file-protocol-warning")?.classList.remove("hidden");
     $("status-spinner")?.classList.add("hidden");
@@ -62,7 +118,7 @@ function initWorker() {
   }
 
   const sqliteCdnDir = "https://cdn.jsdelivr.net/npm/@sqlite.org/sqlite-wasm@3.46.1-build1/sqlite-wasm/jswasm";
-  worker = new Worker(`worker.js?sqlite3.dir=${encodeURIComponent(sqliteCdnDir)}`);
+  worker = new Worker(`worker.js?sqlite3.dir=${encodeURIComponent(sqliteCdnDir)}&variant=${encodeURIComponent(currentDbVariant)}`);
 
   worker.onerror = (err) => {
     elStatusMessage.textContent = `Worker Error: ${err.message || "Failed to load Web Worker"}`;
@@ -82,29 +138,44 @@ function initWorker() {
         elStatusMessage.textContent = `Downloading database: ${d.receivedMb} MB`;
       }
     } else if (d.type === "ready") {
+      if (d.variant) {
+        currentDbVariant = d.variant;
+        updateVariantButtons(currentDbVariant);
+      }
       elStatusContainer.classList.add("hidden");
       elAppContainer.classList.remove("hidden");
       if (d.storageBackend) {
-        console.log("pkgmap: database ready, storage backend:", d.storageBackend);
+        const variantLabel = currentDbVariant === "core" ? "Core" : "Full";
+        console.log("pkgmap: database ready, variant:", currentDbVariant, "storage backend:", d.storageBackend);
         const elBadge = $("storage-badge");
         if (elBadge) {
           if (d.storageBackend.startsWith("opfs")) {
-            elBadge.textContent = "SQLite WASM (OPFS)";
-            elBadge.title = `Persistent disk-backed storage via ${d.storageBackend}`;
+            elBadge.textContent = `SQLite WASM (OPFS · ${variantLabel})`;
+            elBadge.title = `Persistent disk-backed storage via ${d.storageBackend} (${d.repoCount} repositories)`;
           } else {
-            elBadge.textContent = "SQLite WASM (Memory)";
-            elBadge.title = "In-memory database (OPFS unavailable)";
+            elBadge.textContent = `SQLite WASM (Memory · ${variantLabel})`;
+            elBadge.title = `In-memory database (${d.repoCount} repositories)`;
           }
         }
       }
       allRepositoriesList = d.allRepositories || [];
+      syncPopularDistroPreferredRepos();
       renderDistroPills();
-      initDistroFilterBar();
-      initBatchView();
+      if (!uiInitialized) {
+        initDistroFilterBar();
+        initBatchView();
+        uiInitialized = true;
+      } else {
+        populateBatchRepoDropdowns();
+      }
+      const activeQuery = elSearchInput.value.trim() || "bat";
+      elSearchInput.value = activeQuery;
       safeFocus(elSearchInput);
-      elSearchInput.value = "bat";
-      triggerMatrix("bat");
+      triggerMatrix(activeQuery);
       triggerSuggest();
+      if (!elViewBatch.classList.contains("hidden") && elBatchInput.value.trim()) {
+        triggerBatchResolve();
+      }
     } else if (d.type === "suggest_result" && d.id === suggestId) {
       renderSuggestions(d.suggestions);
     } else if (d.type === "matrix_result" && d.id === matrixId) {
@@ -117,6 +188,7 @@ function initWorker() {
     } else if (d.type === "error") {
       elStatusMessage.textContent = `Error: ${d.message}`;
     } else if (d.type === "cache_cleared") {
+      try { localStorage.removeItem(DB_VARIANT_STORAGE_KEY); } catch (_) {}
       alert("Local database cache cleared. Reloading page...");
       window.location.reload();
     }
@@ -275,13 +347,14 @@ function renderResults() {
   let rows = [];
   if (!showAllRepos) {
     rows = POPULAR_DISTROS.filter(d => activeDistroIds.has(d.id)).map(d => {
+      const prefRepo = d.resolvedRepo || d.preferred;
       const matches = (allPackages || []).filter(p => {
         const repo = p.repo_name.toLowerCase();
         return d.prefixes.some(pre => repo === pre || repo.startsWith(pre + "_"));
       });
-      if (!matches.length) return { label: d.label, repoName: d.preferred, packaged: false };
+      if (!matches.length) return { label: d.label, repoName: prefRepo, packaged: false };
       matches.sort((a, b) => {
-        const aPref = a.repo_name === d.preferred, bPref = b.repo_name === d.preferred;
+        const aPref = a.repo_name === prefRepo, bPref = b.repo_name === prefRepo;
         if (aPref !== bPref) return bPref - aPref;
         const aAur = a.repo_name === "aur", bAur = b.repo_name === "aur";
         if (aAur !== bAur) return aAur - bAur;
@@ -428,19 +501,23 @@ function switchTab(mode) {
 
 function populateBatchRepoDropdowns() {
   if (!elBatchSrcRepo || !elBatchDstRepo) return;
+  const prevSrc = elBatchSrcRepo.value;
+  const prevDst = elBatchDstRepo.value;
+
   const createGroup = (label, repos, isPopular) => {
     const grp = document.createElement("optgroup");
     grp.label = label;
     for (const r of repos) {
       const opt = document.createElement("option");
-      opt.value = isPopular ? (r.batchValue || r.preferred) : r.name;
-      opt.textContent = isPopular ? (r.batchLabel || `${r.label} (${r.preferred})`) : `${formatRepoLabel(r.name)} (${r.name})`;
+      const pref = r.resolvedRepo || r.preferred;
+      opt.value = isPopular ? (r.batchValue || pref) : r.name;
+      opt.textContent = isPopular ? (r.batchLabel || `${r.label} (${pref})`) : `${formatRepoLabel(r.name)} (${r.name})`;
       grp.appendChild(opt);
     }
     return grp;
   };
 
-  const popSet = new Set(POPULAR_DISTROS.map(d => d.preferred));
+  const popSet = new Set(POPULAR_DISTROS.map(d => d.resolvedRepo || d.preferred));
   const otherRepos = allRepositoriesList
     .filter(r => !popSet.has(r.name) || r.name === "arch" || r.name === "aur")
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -452,8 +529,9 @@ function populateBatchRepoDropdowns() {
   elBatchSrcRepo.replaceChildren(anyOpt, createGroup("Popular Distributions", POPULAR_DISTROS, true), createGroup("All Repositories", otherRepos, false));
   elBatchDstRepo.replaceChildren(createGroup("Popular Distributions", POPULAR_DISTROS, true), createGroup("All Repositories", otherRepos, false));
 
-  elBatchSrcRepo.value = "any";
-  elBatchDstRepo.value = "arch+aur";
+  const hasOption = (selectEl, val) => Array.from(selectEl.options).some(o => o.value === val);
+  elBatchSrcRepo.value = (prevSrc && hasOption(elBatchSrcRepo, prevSrc)) ? prevSrc : "any";
+  elBatchDstRepo.value = (prevDst && hasOption(elBatchDstRepo, prevDst)) ? prevDst : "arch+aur";
 }
 
 function triggerBatchResolve() {
