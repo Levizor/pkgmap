@@ -225,7 +225,6 @@
                   <th class="px-4 py-3 font-medium">Source Package</th>
                   <th class="px-2 py-3 font-medium w-8 text-center select-none"></th>
                   <th class="px-4 py-3 font-medium">Target Package</th>
-                  <th class="px-4 py-3 font-medium">Repology Project</th>
                   <th class="px-4 py-3 font-medium col-action text-right">Action</th>
                 </tr>
               </thead>
@@ -290,27 +289,25 @@
         </div>
         <span class="row-unresolved text-zinc-500 text-xs italic hidden"></span>
       </td>
-      <td class="px-4 py-3 font-mono col-batch-project">
-        <a class="row-project-link inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-emerald-400 transition-colors hidden" target="_blank" rel="noopener" title="View project on Repology">
-          <img src="repology.png" width="13" height="13" alt="Repology" class="rounded-[2px] shrink-0">
-          <span class="row-project-name font-medium"></span>
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-zinc-500">
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-            <polyline points="15 3 21 3 21 9"></polyline>
-            <line x1="10" y1="14" x2="21" y2="3"></line>
-          </svg>
-        </a>
-        <span class="row-project-empty text-zinc-600 text-xs hidden">—</span>
-      </td>
       <td class="px-4 py-3 col-action text-right">
-        <button type="button" class="btn-copy">Copy</button>
+        <div class="inline-flex items-center gap-1.5 justify-end">
+          <a class="btn-repology-action hidden" target="_blank" rel="noopener" title="View project on Repology">
+            <img src="repology.png" width="13" height="13" alt="Repology" class="rounded-[2px] shrink-0">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-zinc-500">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </a>
+          <button type="button" class="btn-copy">Copy</button>
+        </div>
       </td>
     </tr>
   </template>
 
   <template id="tmpl-empty-row">
     <tr>
-      <td colspan="5" class="px-4 py-8 text-center text-zinc-500 empty-msg"></td>
+      <td colspan="4" class="px-4 py-8 text-center text-zinc-500 empty-msg"></td>
     </tr>
   </template>
 
