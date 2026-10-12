@@ -330,10 +330,9 @@ function handleMatrix(queryId, name) {
       ORDER BY r.package_count DESC;
     `, [effname]);
 
-    const latestVersion = allPackages.find(p => p.version)?.version || null;
     postMessage({
       type: "matrix_result", id: queryId, found: true, query: term,
-      effname, totalDistros: allPackages.length, latestVersion, allPackages
+      effname, totalDistros: allPackages.length, allPackages
     });
   } catch (err) {
     postMessage({ type: "matrix_result", id: queryId, error: err.message || String(err), found: false, query: term });
@@ -374,8 +373,8 @@ function handleBatchResolve(queryId, packages, fromRepo, toRepo) {
     }
 
     const uniqueInputs = [...new Set(packages.map(p => p.trim()).filter(Boolean))];
-    const queryDst = (field, val) => queryRows(`SELECT p.package_name, p.version, r.name as dst_repo_name FROM packages p JOIN repositories r ON p.repo_id = r.id WHERE p.repo_id IN (${dstIn}) AND p.${field} = ?;`, [val]);
-    const queryStrict = (field, val) => queryRows(`SELECT dst.package_name, dst.version, r.name as dst_repo_name FROM packages src JOIN packages dst ON src.effname = dst.effname JOIN repositories r ON dst.repo_id = r.id WHERE src.repo_id IN (${srcIn}) AND src.${field} = ? AND dst.repo_id IN (${dstIn});`, [val]);
+    const queryDst = (field, val) => queryRows(`SELECT p.package_name, p.version, p.effname, r.name as dst_repo_name FROM packages p JOIN repositories r ON p.repo_id = r.id WHERE p.repo_id IN (${dstIn}) AND p.${field} = ?;`, [val]);
+    const queryStrict = (field, val) => queryRows(`SELECT dst.package_name, dst.version, dst.effname, r.name as dst_repo_name FROM packages src JOIN packages dst ON src.effname = dst.effname JOIN repositories r ON dst.repo_id = r.id WHERE src.repo_id IN (${srcIn}) AND src.${field} = ? AND dst.repo_id IN (${dstIn});`, [val]);
 
     const results = uniqueInputs.map(inputPkg => {
       const lower = inputPkg.toLowerCase();
@@ -389,10 +388,17 @@ function handleBatchResolve(queryId, packages, fromRepo, toRepo) {
       if (matches.length > 0) {
         sortBatchMatches(matches, lower);
         const best = matches[0];
-        return { input: inputPkg, resolved: true, targetName: best.package_name, targetVersion: best.version, repoSource: best.dst_repo_name, matchCount: matches.length };
+        return { input: inputPkg, resolved: true, targetName: best.package_name, targetVersion: best.version, repoSource: best.dst_repo_name, effname: best.effname, matchCount: matches.length };
       }
-      const notInSource = !isGeneric && queryRows(`SELECT 1 FROM packages WHERE repo_id IN (${srcIn}) AND (package_name = ? OR effname = ?) LIMIT 1;`, [inputPkg, inputPkg]).length === 0;
-      return { input: inputPkg, resolved: false, targetName: null, targetVersion: null, reason: notInSource ? "not_in_source" : "not_in_target" };
+      let unresEffname = null;
+      if (!isGeneric) {
+        const srcMatch = queryRows(`SELECT effname FROM packages WHERE repo_id IN (${srcIn}) AND (package_name = ? OR effname = ?) LIMIT 1;`, [inputPkg, inputPkg])[0];
+        if (srcMatch) unresEffname = srcMatch.effname;
+      } else {
+        unresEffname = resolveCanonicalEffname(inputPkg) || queryRows("SELECT effname FROM packages WHERE package_name = ? LIMIT 1;", [inputPkg])[0]?.effname;
+      }
+      const notInSource = !isGeneric && !unresEffname;
+      return { input: inputPkg, resolved: false, targetName: null, targetVersion: null, effname: unresEffname, reason: notInSource ? "not_in_source" : "not_in_target" };
     });
 
     postMessage({

@@ -262,6 +262,32 @@ body {
   display: none !important;
 }
 
+#results-repology-link {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.btn-repology-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.5rem;
+  padding: 0;
+  border-radius: 0.25rem;
+  background-color: #27272a;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.15s, opacity 0.15s;
+  border: none;
+  user-select: none;
+}
+
+.btn-repology-action:hover {
+  background-color: #3f3f46;
+}
+
 /* ==========================================================================
    Responsive Mobile Card View & Scroll Safeguards
    ========================================================================== */
@@ -395,6 +421,13 @@ body {
 
   .mobile-card-table tr:has(.empty-msg) {
     display: block !important;
+  }
+
+  .btn-repology-action {
+    width: 1.875rem !important;
+    height: 1.875rem !important;
+    padding: 0 !important;
+    border-radius: 0.375rem !important;
   }
 
   /* Touch-friendly buttons on mobile */

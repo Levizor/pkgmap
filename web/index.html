@@ -123,12 +123,28 @@
 
         <!-- Results Container -->
         <div id="results-container" class="hidden space-y-4">
-          <div id="results-summary" class="flex items-center justify-between px-1 text-xs font-mono text-zinc-400">
-            <div class="flex items-center gap-2">
-              <span id="results-effname" class="text-white font-bold text-sm tracking-tight font-mono"></span>
-              <span id="results-version" class="px-2 py-0.5 rounded bg-zinc-800/80 text-zinc-300 hidden"></span>
+          <div id="results-summary" class="flex flex-wrap items-center justify-between px-1 gap-3 text-xs font-mono text-zinc-400">
+            <div class="flex items-center gap-3 flex-wrap">
+              <span id="results-effname" class="text-white font-extrabold text-2xl sm:text-3xl tracking-tight font-mono"></span>
+              <a 
+                id="results-repology-link" 
+                href="#" 
+                target="_blank" 
+                rel="noopener" 
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-300 hover:text-white transition-colors text-xs font-medium no-underline"
+                style="border: none; outline: none;"
+                title="View project details on Repology"
+              >
+                <img src="repology.svg" width="14" height="14" alt="Repology" class="rounded-[2px] shrink-0">
+                <span>Repology</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-zinc-400">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+              </a>
             </div>
-            <span id="results-targets" class="text-zinc-500"></span>
+            <span id="results-targets" class="text-zinc-500 font-medium"></span>
           </div>
           <div id="results-empty" class="hidden py-10 text-center text-zinc-500 text-sm font-mono"></div>
           <div id="results-table-wrap" class="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 shadow-xl table-responsive-wrap">
@@ -204,6 +220,14 @@
 
           <div class="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 shadow-xl table-responsive-wrap">
             <table class="w-full text-left text-sm font-mono text-zinc-200 mobile-card-table">
+              <thead>
+                <tr class="border-b border-zinc-800 text-xs text-zinc-400 font-sans uppercase tracking-wider bg-zinc-950/40">
+                  <th class="px-4 py-3 font-medium">Source Package</th>
+                  <th class="px-2 py-3 font-medium w-8 text-center select-none"></th>
+                  <th class="px-4 py-3 font-medium">Target Package</th>
+                  <th class="px-4 py-3 font-medium col-action text-right">Action</th>
+                </tr>
+              </thead>
               <tbody id="batch-results-table" class="divide-y divide-zinc-800/40"></tbody>
             </table>
           </div>
@@ -266,7 +290,12 @@
         <span class="row-unresolved text-zinc-500 text-xs italic hidden"></span>
       </td>
       <td class="px-4 py-3 col-action text-right">
-        <button type="button" class="btn-copy">Copy</button>
+        <div class="inline-flex items-center gap-1.5 justify-end">
+          <a class="btn-repology-action hidden" target="_blank" rel="noopener" title="View project on Repology">
+            <img src="repology.svg" width="14" height="14" alt="Repology" class="rounded-[2px] shrink-0">
+          </a>
+          <button type="button" class="btn-copy">Copy</button>
+        </div>
       </td>
     </tr>
   </template>
