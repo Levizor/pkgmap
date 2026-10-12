@@ -2,7 +2,7 @@ import sqlite3
 from collections.abc import Sequence
 from pathlib import Path
 
-from pkgmap.db import ensure_database
+from pkgmap.db import DatabaseVariant, ensure_database
 from pkgmap.schema import PackageResolution, Repository
 
 DEFAULT_ALIASES: dict[str, str] = {
@@ -24,46 +24,72 @@ DEFAULT_ALIASES: dict[str, str] = {
 }
 
 
-def resolve_repo_name(conn: sqlite3.Connection, repo_input: str) -> str:
-    """Resolve a user-supplied repository alias or name to its canonical slug."""
+def find_repo_name(conn: sqlite3.Connection, repo_input: str) -> str | None:
+    """Find the canonical repository slug in the database, or None if not found."""
     normalized = repo_input.strip().lower().replace("-", "_")
-    target = DEFAULT_ALIASES.get(normalized, normalized)
-
     cursor = conn.cursor()
 
     # 1. Exact match in repositories
-    cursor.execute("SELECT name FROM repositories WHERE name = ?", (target,))
+    cursor.execute("SELECT name FROM repositories WHERE name = ?", (normalized,))
     row = cursor.fetchone()
     if row:
-        return row[0]
+        return str(row[0])
 
-    # 2. Check repository_aliases table
+    # 2. Check repository_aliases table in the database
     cursor.execute(
-        "SELECT target_repo FROM repository_aliases WHERE alias = ?", (target,)
+        "SELECT target_repo FROM repository_aliases WHERE alias = ?", (normalized,)
     )
     row = cursor.fetchone()
     if row:
-        return row[0]
+        return str(row[0])
 
-    # 3. Prefix matching (e.g. 'debian' -> highest package_count debian_* repo)
+    # 3. Check fallback DEFAULT_ALIASES if target exists in repositories
+    if normalized in DEFAULT_ALIASES:
+        fallback = DEFAULT_ALIASES[normalized]
+        cursor.execute("SELECT name FROM repositories WHERE name = ?", (fallback,))
+        row = cursor.fetchone()
+        if row:
+            return str(row[0])
+
+    # 4. Prefix matching (e.g. 'debian' -> highest package_count debian_* repo)
     cursor.execute(
         "SELECT name FROM repositories WHERE name LIKE ? ORDER BY package_count DESC LIMIT 1",
-        (f"{target}%",),
+        (f"{normalized}%",),
     )
     row = cursor.fetchone()
     if row:
-        return row[0]
+        return str(row[0])
 
-    # 4. Family matching (e.g. 'debuntu' or family name)
+    # 5. Family matching (e.g. 'debuntu' or family name)
     cursor.execute(
         "SELECT name FROM repositories WHERE family = ? ORDER BY package_count DESC LIMIT 1",
-        (target,),
+        (normalized,),
     )
     row = cursor.fetchone()
     if row:
-        return row[0]
+        return str(row[0])
 
-    return repo_input
+    return None
+
+
+def resolve_repo_name(conn: sqlite3.Connection, repo_input: str) -> str:
+    """Resolve a user-supplied repository alias or name to its canonical slug."""
+    return find_repo_name(conn, repo_input) or repo_input
+
+
+def get_missing_repositories(
+    repos: Sequence[str],
+    db_path: Path | str | None = None,
+    variant: DatabaseVariant | None = None,
+) -> list[str]:
+    """Return any repository names from `repos` that cannot be resolved in the database."""
+    if not repos:
+        return []
+    conn = sqlite3.connect(ensure_database(db_path, variant=variant))
+    try:
+        return [r for r in repos if find_repo_name(conn, r) is None]
+    finally:
+        conn.close()
 
 
 BATCH_CHUNK_SIZE = 500
@@ -74,6 +100,7 @@ def resolve_batch_all(
     from_repo: str | None = None,
     to_repo: str | None = None,
     db_path: Path | str | None = None,
+    variant: DatabaseVariant | None = None,
 ) -> dict[str, list[PackageResolution]]:
     """Resolve a batch of packages or projects, returning all matches for each package."""
     if not packages:
@@ -81,7 +108,7 @@ def resolve_batch_all(
 
     results: dict[str, list[PackageResolution]] = {pkg: [] for pkg in packages}
     unique_pkgs = list(dict.fromkeys(packages))
-    conn = sqlite3.connect(ensure_database(db_path))
+    conn = sqlite3.connect(ensure_database(db_path, variant=variant))
 
     try:
         cursor = conn.cursor()
@@ -140,10 +167,15 @@ def resolve_batch(
     from_repo: str | None = None,
     to_repo: str | None = None,
     db_path: Path | str | None = None,
+    variant: DatabaseVariant | None = None,
 ) -> dict[str, PackageResolution | None]:
     """Resolve a batch of packages or projects, returning the first match for each package."""
     all_res = resolve_batch_all(
-        packages, from_repo=from_repo, to_repo=to_repo, db_path=db_path
+        packages,
+        from_repo=from_repo,
+        to_repo=to_repo,
+        db_path=db_path,
+        variant=variant,
     )
     return {pkg: matches[0] if matches else None for pkg, matches in all_res.items()}
 
@@ -153,10 +185,15 @@ def resolve_all(
     from_repo: str | None = None,
     to_repo: str | None = None,
     db_path: Path | str | None = None,
+    variant: DatabaseVariant | None = None,
 ) -> list[PackageResolution]:
     """Resolve all equivalent packages across target repository or all repositories."""
     return resolve_batch_all(
-        [package], from_repo=from_repo, to_repo=to_repo, db_path=db_path
+        [package],
+        from_repo=from_repo,
+        to_repo=to_repo,
+        db_path=db_path,
+        variant=variant,
     ).get(package, [])
 
 
@@ -165,10 +202,15 @@ def resolve(
     from_repo: str | None = None,
     to_repo: str | None = None,
     db_path: Path | str | None = None,
+    variant: DatabaseVariant | None = None,
 ) -> PackageResolution | None:
     """Resolve a package or project to its primary equivalent."""
     return resolve_batch(
-        [package], from_repo=from_repo, to_repo=to_repo, db_path=db_path
+        [package],
+        from_repo=from_repo,
+        to_repo=to_repo,
+        db_path=db_path,
+        variant=variant,
     ).get(package)
 
 
@@ -176,14 +218,24 @@ def resolve_project(
     effname: str,
     to_repo: str | None = None,
     db_path: Path | str | None = None,
+    variant: DatabaseVariant | None = None,
 ) -> list[PackageResolution]:
     """Resolve packages matching the canonical upstream project name."""
-    return resolve_all(effname, from_repo=None, to_repo=to_repo, db_path=db_path)
+    return resolve_all(
+        effname,
+        from_repo=None,
+        to_repo=to_repo,
+        db_path=db_path,
+        variant=variant,
+    )
 
 
-def list_repositories(db_path: Path | str | None = None) -> list[Repository]:
+def list_repositories(
+    db_path: Path | str | None = None,
+    variant: DatabaseVariant | None = None,
+) -> list[Repository]:
     """Return all repositories registered in the package database."""
-    resolved_db = ensure_database(db_path)
+    resolved_db = ensure_database(db_path, variant=variant)
     conn = sqlite3.connect(resolved_db)
     try:
         cursor = conn.cursor()

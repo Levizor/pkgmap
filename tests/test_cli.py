@@ -308,3 +308,46 @@ def test_cli_resolve_all_repos_not_found(tmp_path: Path) -> None:
     )
     assert result.exit_code == 1
     assert "No equivalent package found for project 'nonexistent'." in result.stdout
+
+
+def test_cli_warns_when_repo_missing_in_core_db(tmp_path: Path) -> None:
+    import sqlite3
+
+    db_path = tmp_path / "test_core.sqlite"
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
+    CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
+    CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
+
+    INSERT INTO projects VALUES (1, 'bat');
+    INSERT INTO repositories VALUES (1, 'nix_unstable', 'nix', 100);
+    INSERT INTO packages VALUES (1, 1, 'bat', '0.24.0');
+    """)
+    conn.commit()
+    conn.close()
+
+    result = runner.invoke(
+        cli_app,
+        [
+            "resolve",
+            "bat",
+            "--from",
+            "slackware",
+            "--to",
+            "nix_unstable",
+            "--core",
+            "--db-path",
+            str(db_path),
+        ],
+    )
+    assert result.exit_code == 1
+    assert "Repository 'slackware' is not in the core database." in result.stdout
+    assert "pkgmap update --full" in result.stdout
+
+
+def test_cli_core_and_full_conflict() -> None:
+    result = runner.invoke(cli_app, ["resolve", "bat", "--core", "--full"])
+    assert result.exit_code == 2
+    assert "Cannot specify both --core and --full" in result.stdout
