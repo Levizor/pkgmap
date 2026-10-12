@@ -51,7 +51,8 @@ function initWorker() {
     return;
   }
 
-  worker = new Worker("worker.js");
+  const sqliteCdnDir = "https://cdn.jsdelivr.net/npm/@sqlite.org/sqlite-wasm@3.46.1-build1/sqlite-wasm/jswasm";
+  worker = new Worker(`worker.js?sqlite3.dir=${encodeURIComponent(sqliteCdnDir)}`);
 
   worker.onerror = (err) => {
     elStatusMessage.textContent = `Worker Error: ${err.message || "Failed to load Web Worker"}`;
@@ -68,6 +69,19 @@ function initWorker() {
     } else if (d.type === "ready") {
       elStatusContainer.classList.add("hidden");
       elAppContainer.classList.remove("hidden");
+      if (d.storageBackend) {
+        console.log("pkgmap: database ready, storage backend:", d.storageBackend);
+        const elBadge = $("storage-badge");
+        if (elBadge) {
+          if (d.storageBackend.startsWith("opfs")) {
+            elBadge.textContent = "SQLite WASM (OPFS)";
+            elBadge.title = `Persistent disk-backed storage via ${d.storageBackend}`;
+          } else {
+            elBadge.textContent = "SQLite WASM (Memory)";
+            elBadge.title = "In-memory database (OPFS unavailable)";
+          }
+        }
+      }
       allRepositoriesList = d.allRepositories || [];
       renderDistroPills();
       initDistroFilterBar();
