@@ -1,6 +1,6 @@
 [project]
 name = "pkgmap-py"
-version = "0.1.0"
+version = "0.1.1"
 description = "Cross-distribution Linux package name resolution"
 authors = [{ name = "Levizor", email = "levizor@disroot.org" }]
 license = { text = "MIT" }
