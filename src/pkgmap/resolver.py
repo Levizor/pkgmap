@@ -24,46 +24,71 @@ DEFAULT_ALIASES: dict[str, str] = {
 }
 
 
-def resolve_repo_name(conn: sqlite3.Connection, repo_input: str) -> str:
-    """Resolve a user-supplied repository alias or name to its canonical slug."""
+def find_repo_name(conn: sqlite3.Connection, repo_input: str) -> str | None:
+    """Find the canonical repository slug in the database, or None if not found."""
     normalized = repo_input.strip().lower().replace("-", "_")
-    target = DEFAULT_ALIASES.get(normalized, normalized)
-
     cursor = conn.cursor()
 
     # 1. Exact match in repositories
-    cursor.execute("SELECT name FROM repositories WHERE name = ?", (target,))
+    cursor.execute("SELECT name FROM repositories WHERE name = ?", (normalized,))
     row = cursor.fetchone()
     if row:
-        return row[0]
+        return str(row[0])
 
-    # 2. Check repository_aliases table
+    # 2. Check repository_aliases table in the database
     cursor.execute(
-        "SELECT target_repo FROM repository_aliases WHERE alias = ?", (target,)
+        "SELECT target_repo FROM repository_aliases WHERE alias = ?", (normalized,)
     )
     row = cursor.fetchone()
     if row:
-        return row[0]
+        return str(row[0])
 
-    # 3. Prefix matching (e.g. 'debian' -> highest package_count debian_* repo)
+    # 3. Check fallback DEFAULT_ALIASES if target exists in repositories
+    if normalized in DEFAULT_ALIASES:
+        fallback = DEFAULT_ALIASES[normalized]
+        cursor.execute("SELECT name FROM repositories WHERE name = ?", (fallback,))
+        row = cursor.fetchone()
+        if row:
+            return str(row[0])
+
+    # 4. Prefix matching (e.g. 'debian' -> highest package_count debian_* repo)
     cursor.execute(
         "SELECT name FROM repositories WHERE name LIKE ? ORDER BY package_count DESC LIMIT 1",
-        (f"{target}%",),
+        (f"{normalized}%",),
     )
     row = cursor.fetchone()
     if row:
-        return row[0]
+        return str(row[0])
 
-    # 4. Family matching (e.g. 'debuntu' or family name)
+    # 5. Family matching (e.g. 'debuntu' or family name)
     cursor.execute(
         "SELECT name FROM repositories WHERE family = ? ORDER BY package_count DESC LIMIT 1",
-        (target,),
+        (normalized,),
     )
     row = cursor.fetchone()
     if row:
-        return row[0]
+        return str(row[0])
 
-    return repo_input
+    return None
+
+
+def resolve_repo_name(conn: sqlite3.Connection, repo_input: str) -> str:
+    """Resolve a user-supplied repository alias or name to its canonical slug."""
+    return find_repo_name(conn, repo_input) or repo_input
+
+
+def get_missing_repositories(
+    repos: Sequence[str],
+    db_path: Path | str | None = None,
+) -> list[str]:
+    """Return any repository names from `repos` that cannot be resolved in the database."""
+    if not repos:
+        return []
+    conn = sqlite3.connect(ensure_database(db_path))
+    try:
+        return [r for r in repos if find_repo_name(conn, r) is None]
+    finally:
+        conn.close()
 
 
 BATCH_CHUNK_SIZE = 500

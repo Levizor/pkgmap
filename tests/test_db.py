@@ -1,13 +1,21 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 import zstandard as zstd
 
 from pkgmap.db import (
+    DEFAULT_CORE_DB_PATH,
     DEFAULT_DB_PATH,
+    GITHUB_RELEASE_CORE_LATEST_URL,
+    GITHUB_RELEASE_LATEST_URL,
     decompress_zstd_file,
     ensure_database,
     get_database_path,
+    get_database_url,
+    get_default_variant,
+    resolve_cli_variant,
+    set_default_variant,
     update_database,
 )
 
@@ -24,7 +32,43 @@ def test_get_database_path_env_var(monkeypatch) -> None:
 
 def test_get_database_path_default(monkeypatch) -> None:
     monkeypatch.delenv("PKGMAP_DB_PATH", raising=False)
+    monkeypatch.delenv("PKGMAP_DB_VARIANT", raising=False)
+    set_default_variant("full")
     assert get_database_path() == DEFAULT_DB_PATH.expanduser().resolve()
+    assert (
+        get_database_path(variant="core") == DEFAULT_CORE_DB_PATH.expanduser().resolve()
+    )
+
+
+def test_set_default_variant_and_urls(monkeypatch) -> None:
+    monkeypatch.delenv("PKGMAP_DB_PATH", raising=False)
+    monkeypatch.delenv("PKGMAP_DB_VARIANT", raising=False)
+    try:
+        set_default_variant("core")
+        assert get_default_variant() == "core"
+        assert get_database_path() == DEFAULT_CORE_DB_PATH.expanduser().resolve()
+        assert get_database_url() == GITHUB_RELEASE_CORE_LATEST_URL
+        assert get_database_url(variant="full") == GITHUB_RELEASE_LATEST_URL
+
+        with pytest.raises(ValueError):
+            set_default_variant("invalid")  # type: ignore[arg-type]
+    finally:
+        set_default_variant("full")
+
+
+def test_resolve_cli_variant(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("PKGMAP_DB_VARIANT", raising=False)
+    fake_full = tmp_path / "pkgmap.db"
+    monkeypatch.setattr("pkgmap.db.DEFAULT_DB_PATH", fake_full)
+
+    # When full DB does not exist locally, CLI defaults to 'core'
+    assert resolve_cli_variant() == "core"
+    assert resolve_cli_variant(full=True) == "full"
+
+    # Once full DB exists locally, CLI defaults to 'full' unless --core is passed
+    fake_full.write_bytes(b"sqlite")
+    assert resolve_cli_variant() == "full"
+    assert resolve_cli_variant(core=True) == "core"
 
 
 def test_decompress_zstd_file(tmp_path: Path) -> None:

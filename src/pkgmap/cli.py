@@ -4,14 +4,37 @@ from typing import Annotated
 
 import typer
 
-from pkgmap.db import get_database_path, update_database
-from pkgmap.resolver import list_repositories, resolve_all, resolve_project
+from pkgmap.db import (
+    DatabaseVariant,
+    get_database_path,
+    resolve_cli_variant,
+    set_default_variant,
+    update_database,
+)
+from pkgmap.resolver import (
+    get_missing_repositories,
+    list_repositories,
+    resolve_all,
+    resolve_project,
+)
 
 cli_app = typer.Typer(
     name="pkgmap",
     help="Cross-distribution Linux package name resolution CLI",
     add_completion=False,
 )
+
+
+def _select_variant(core: bool, full: bool) -> DatabaseVariant:
+    if core and full:
+        typer.secho(
+            "Error: Cannot specify both --core and --full.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=2)
+    variant = resolve_cli_variant(full=full, core=core)
+    set_default_variant(variant)
+    return variant
 
 
 @cli_app.callback()
@@ -68,6 +91,14 @@ def resolve_cmd(
         bool,
         typer.Option("--json", "-j", help="Output results in JSON format"),
     ] = False,
+    core: Annotated[
+        bool,
+        typer.Option("--core", help="Use the core database (top 20 repositories)"),
+    ] = False,
+    full: Annotated[
+        bool,
+        typer.Option("--full", help="Use the full database (all repositories)"),
+    ] = False,
     db_path: Annotated[
         Path | None,
         typer.Option("--db-path", help="Custom path to pkgmap.db database"),
@@ -80,6 +111,8 @@ def resolve_cmd(
             fg=typer.colors.RED,
         )
         raise typer.Exit(code=2)
+
+    variant = _select_variant(core=core, full=full)
 
     if from_repo and not project:
         results = resolve_all(
@@ -103,6 +136,16 @@ def resolve_cmd(
                 else:
                     msg = f"No equivalent package found for project '{package}'."
             typer.secho(msg, fg=typer.colors.YELLOW)
+
+            requested_repos = [r for r in (from_repo, to_repo) if r]
+            missing_repos = get_missing_repositories(requested_repos, db_path=db_path)
+            if missing_repos and variant == "core":
+                missing_str = ", ".join(f"'{r}'" for r in missing_repos)
+                typer.secho(
+                    f"Repository {missing_str} is not in the core database. "
+                    "Try the full database with: pkgmap update --full",
+                    fg=typer.colors.CYAN,
+                )
         raise typer.Exit(code=1)
 
     items_to_show = results if (all_matches or to_repo is None) else results[:1]
@@ -128,28 +171,47 @@ def resolve_cmd(
 
 @cli_app.command(name="update")
 def update_cmd(
+    core: Annotated[
+        bool,
+        typer.Option("--core", help="Download the core database (top 20 repositories)"),
+    ] = False,
+    full: Annotated[
+        bool,
+        typer.Option("--full", help="Download the full database (all repositories)"),
+    ] = False,
     db_path: Annotated[
         Path | None,
         typer.Option("--db-path", help="Custom path to save pkgmap.db database"),
     ] = None,
 ) -> None:
     """Explicitly download and update the local package map database."""
-    target_path = get_database_path(db_path)
-    typer.echo(f"Updating package database at {target_path}...")
-    update_database(db_path=target_path, show_progress=True)
+    variant = _select_variant(core=core, full=full)
+    target_path = get_database_path(db_path, variant=variant)
+    typer.echo(f"Updating {variant} package database at {target_path}...")
+    update_database(db_path=target_path, show_progress=True, variant=variant)
     typer.secho(
-        f"Successfully updated database at {target_path}", fg=typer.colors.GREEN
+        f"Successfully updated {variant} database at {target_path}",
+        fg=typer.colors.GREEN,
     )
 
 
 @cli_app.command(name="repos")
 def repos_cmd(
+    core: Annotated[
+        bool,
+        typer.Option("--core", help="List repositories from the core database"),
+    ] = False,
+    full: Annotated[
+        bool,
+        typer.Option("--full", help="List repositories from the full database"),
+    ] = False,
     db_path: Annotated[
         Path | None,
         typer.Option("--db-path", help="Custom path to pkgmap.db database"),
     ] = None,
 ) -> None:
     """List all available distributions and repositories."""
+    _select_variant(core=core, full=full)
     repos = list_repositories(db_path=db_path)
     typer.echo(f"{'Repository':<25} {'Family':<15} {'Packages':>10}")
     typer.echo("-" * 52)
