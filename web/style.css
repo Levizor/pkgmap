@@ -258,6 +258,10 @@ body {
   user-select: none;
 }
 
+.hidden {
+  display: none !important;
+}
+
 #results-repology-link {
   border: none !important;
   outline: none !important;

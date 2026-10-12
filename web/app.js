@@ -505,16 +505,15 @@ function renderBatchResults(data) {
       const tr = tmplBatchRow.content.cloneNode(true);
       tr.querySelector(".row-input").textContent = r.input;
       const projName = r.effname;
-      const projLink = tr.querySelector(".row-project-link");
-      const projEmpty = tr.querySelector(".row-project-empty");
-      if (projName && projLink) {
-        projLink.href = `https://repology.org/project/${encodeURIComponent(projName)}/information`;
-        projLink.title = `View ${projName} on Repology`;
-        const projNameEl = tr.querySelector(".row-project-name");
-        if (projNameEl) projNameEl.textContent = projName;
-        projLink.classList.remove("hidden");
-      } else if (projEmpty) {
-        projEmpty.classList.remove("hidden");
+      const repoAction = tr.querySelector(".btn-repology-action");
+      if (repoAction) {
+        if (projName) {
+          repoAction.href = `https://repology.org/project/${encodeURIComponent(projName)}/information`;
+          repoAction.title = `View project "${projName}" on Repology`;
+          repoAction.classList.remove("hidden");
+        } else {
+          repoAction.remove();
+        }
       }
 
       if (r.resolved) {
