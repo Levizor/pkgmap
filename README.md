@@ -4,9 +4,10 @@ Cross-distribution Linux package name resolution.
 
 Different distributions often package the exact same software under different names (for example, `ninja` on Arch is `ninja-build` on Debian and Alpine; `bat` on Arch is `rust-bat` on Debian and Fedora; `fd` on Arch is `rust-fd-find` on Debian; Nixpkgs uses specific attribute paths). `pkgmap` provides an offline SQLite database and a companion Python library/CLI to translate package names between any pair of Linux distributions, resolve packages across all repositories, or look up native packages by upstream project name.
 
-Data is updated daily from [Repology](https://repology.org) and indexed for instant local lookups. On first run, `pkgmap` automatically downloads and decompresses the latest daily database release (`~/.cache/pkgmap/pkgmap.db`).
+Data is updated daily from [Repology](https://repology.org) and indexed for instant local lookups. On first run, `pkgmap` automatically downloads and decompresses the latest daily database snapshot (`~/.cache/pkgmap/`).
 
-The package is available on PyPI as [`pkgmap-py`](https://pypi.org/project/pkgmap-py/).
+- **PyPI**: [`pkgmap-py`](https://pypi.org/project/pkgmap-py/)
+- **Web Interface**: [levizor.github.io/pkgmap](https://levizor.github.io/pkgmap/) (runs 100% client-side via SQLite WebAssembly + OPFS)
 
 ---
 
@@ -19,11 +20,26 @@ Use `--from` (`-f`) and `--to` (`-t`):
 ```bash
 # What is Arch's 'bat' called in Debian?
 pkgmap resolve bat --from arch --to debian
-# Output: rust-bat (0.22.1) [category: misc]
+# Output: rust-bat (0.24.0)
 
 # What is Arch's 'fd' in Nixpkgs?
 pkgmap resolve fd -f arch -t nixpkgs
 # Output: fd (10.5.0)
+```
+
+### Batch resolution
+
+Pass multiple package names to resolve them in a single query:
+
+```bash
+pkgmap resolve git gcc bat --from nix --to gnuguix
+```
+
+Output:
+```text
+git -> git (2.54.0)
+gcc -> gcc (15.2.0)
+bat -> bat (0.26.1)
 ```
 
 ### Resolve across all distributions
@@ -36,8 +52,8 @@ pkgmap resolve bat --from arch
 
 Output:
 ```text
-alpine_3_20: bat (0.24.0)
-debian_12: rust-bat (0.22.1) [category: misc]
+alpine_edge: bat (0.24.0)
+debian_unstable: rust-bat (0.24.0)
 fedora_rawhide: rust-bat (0.26.1)
 nix_unstable: bat (0.26.1)
 ubuntu_24_04: rust-bat (0.24.0)
@@ -50,7 +66,7 @@ Omit `--from` (or pass `--project` / `-p`) to resolve packages directly from an 
 
 ```bash
 pkgmap resolve ripgrep --to debian
-# Output: rust-ripgrep (13.0.0) [category: misc]
+# Output: rust-ripgrep (14.1.0)
 ```
 
 ### JSON output
@@ -65,12 +81,14 @@ pkgmap resolve bat -f arch -t debian --json
 [
   {
     "name": "rust-bat",
-    "version": "0.22.1",
-    "repo": "debian_12",
+    "version": "0.24.0",
+    "repo": "debian_unstable",
     "repo_family": "debuntu"
   }
 ]
 ```
+
+When multiple packages are passed with `--json`, the output is a dictionary keyed by each input package name.
 
 ### Other commands
 
@@ -80,22 +98,42 @@ pkgmap repos
 
 # Manually refresh the local database snapshot
 pkgmap update
+
+# Download the full database (all 330+ Repology repositories)
+pkgmap update --full
 ```
+
+---
+
+## Core vs. Full Database Variants
+
+`pkgmap` publishes two database snapshots with every daily release:
+
+| Variant | File | Compressed Size | Coverage | Default For |
+| :--- | :--- | :--- | :--- | :--- |
+| **Core** | `pkgmap-core.db` | ~11.5 MB | Top 20 distributions (Arch, AUR, Debian, Ubuntu, Fedora, Nixpkgs, Alpine, Gentoo, Homebrew, FreeBSD, openSUSE, Void, Guix, etc.) | **CLI & Web UI** |
+| **Full** | `pkgmap.db` | ~37 MB | All 330+ Repology repositories | **Python Library** |
+
+- **CLI behavior**: Defaults to the **Core** database (`~/.cache/pkgmap/pkgmap-core.db`) unless the Full database is already downloaded locally or `--full` is passed. If you query a repository not present in Core, the CLI prompts you to run `pkgmap update --full`. You can also pass `--core` or `--full` to any CLI command (`resolve`, `update`, `repos`).
+- **Python library behavior**: Defaults to the **Full** database (`~/.cache/pkgmap/pkgmap.db`). Call `set_default_variant("core")` (or set `PKGMAP_DB_VARIANT=core`) to use the Core database instead.
 
 ---
 
 ## Python API
 
-You can also use `pkgmap` as a Python library:
+You can use `pkgmap` as a Python library:
 
 ```python
-from pkgmap import resolve, resolve_all, resolve_batch
+from pkgmap import resolve, resolve_all, resolve_batch, set_default_variant
+
+# Optional: switch library default from 'full' to 'core'
+# set_default_variant("core")
 
 # 1. Single package resolution
 res = resolve("bat", from_repo="arch", to_repo="debian")
 if res:
     print(res.name, res.version)
-    # Output: rust-bat 0.22.1
+    # Output: rust-bat 0.24.0
 
 # 2. Query all repositories for equivalents
 matches = resolve_all("bat", from_repo="arch")
@@ -118,20 +156,24 @@ for pkg, match in results.items():
 - `resolve_batch(packages, from_repo=None, to_repo=None, db_path=None)`: Resolves a sequence of packages in a single batch query, returning `{package: PackageResolution | None}`.
 - `resolve_batch_all(packages, from_repo=None, to_repo=None, db_path=None)`: Batch resolution returning `{package: list[PackageResolution]}`.
 - `list_repositories(db_path=None)`: Returns all repositories with package counts and families.
+- `set_default_variant(variant)`: Sets the default database variant (`"full"` or `"core"`).
+- `get_default_variant()`: Returns the active default database variant.
 
 ---
 
 ## Configuration
 
-By default, the database is stored at:
-- `~/.cache/pkgmap/pkgmap.db`
+By default, databases are cached at:
+- Full database: `~/.cache/pkgmap/pkgmap.db`
+- Core database: `~/.cache/pkgmap/pkgmap-core.db`
 
-You can customize the location using:
-- The `PKGMAP_DB_PATH` environment variable:
+You can customize behavior using environment variables:
+- `PKGMAP_DB_VARIANT`: Set to `core` or `full` to override the default database variant.
+- `PKGMAP_DB_PATH`: Override the database file path directly:
   ```bash
   export PKGMAP_DB_PATH="/path/to/custom/pkgmap.db"
   ```
-- Or the `--db-path` argument on the CLI / `db_path` parameter in Python.
+- Or pass `--db-path` on the CLI / `db_path` in Python.
 
 ---
 
