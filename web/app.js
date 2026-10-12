@@ -42,6 +42,16 @@ const tmplSingleRow = $("tmpl-single-row"), tmplBatchRow = $("tmpl-batch-row"),
   tmplEmptyRow = $("tmpl-empty-row"), tmplSuggestionChip = $("tmpl-suggestion-chip"),
   tmplDistroPill = $("tmpl-distro-pill");
 
+function shouldAutoFocus() {
+  return !(window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768);
+}
+
+function safeFocus(el) {
+  if (shouldAutoFocus()) {
+    el?.focus();
+  }
+}
+
 function initWorker() {
   if (window.location.protocol === "file:") {
     $("file-protocol-warning")?.classList.remove("hidden");
@@ -86,7 +96,7 @@ function initWorker() {
       renderDistroPills();
       initDistroFilterBar();
       initBatchView();
-      elSearchInput.focus();
+      safeFocus(elSearchInput);
       elSearchInput.value = "bat";
       triggerMatrix("bat");
       triggerSuggest();
@@ -318,7 +328,9 @@ function renderResults() {
       tr.querySelector(".row-unpackaged").classList.remove("hidden");
       tr.querySelector(".btn-copy").remove();
     }
-    tr.querySelector(".row-version").textContent = r.version ? `v${r.version}` : "—";
+    tr.querySelectorAll(".row-version").forEach(el => {
+      el.textContent = r.version ? `v${r.version}` : "—";
+    });
     frag.appendChild(tr);
   }
   elResultsTable.appendChild(frag);
@@ -408,7 +420,7 @@ function switchTab(mode) {
   elTabBatch.className = `mode-tab-btn ${isSingle ? "" : "active"}`;
   elViewSingle.classList.toggle("hidden", !isSingle);
   elViewBatch.classList.toggle("hidden", isSingle);
-  (isSingle ? elSearchInput : elBatchInput).focus();
+  safeFocus(isSingle ? elSearchInput : elBatchInput);
 }
 
 function populateBatchRepoDropdowns() {
