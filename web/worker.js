@@ -10,9 +10,26 @@ if (self.sqlite3InitModuleState) {
   self.sqlite3InitModuleState.sqlite3Dir = SQLITE_WASM_DIR;
 }
 
-const DB_FILENAME = "pkgmap.db.zst";
-const OPFS_DB_NAME = "/pkgmap.db";
+const DB_CONFIGS = {
+  core: {
+    filename: "pkgmap-core.db.zst",
+    releaseUrl: "https://github.com/Levizor/pkgmap/releases/latest/download/pkgmap-core.db.zst",
+    opfsName: "/pkgmap-core.db",
+    legacyName: "pkgmap-core.db",
+    label: "core database",
+  },
+  full: {
+    filename: "pkgmap.db.zst",
+    releaseUrl: "https://github.com/Levizor/pkgmap/releases/latest/download/pkgmap.db.zst",
+    opfsName: "/pkgmap.db",
+    legacyName: "pkgmap.db",
+    label: "full database",
+  },
+};
 const LEGACY_CACHE_NAME = "pkgmap-db-v3";
+
+const initialUrlParams = new URLSearchParams(self.location.search);
+let currentVariant = initialUrlParams.get("variant") === "full" ? "full" : "core";
 
 let db = null;
 let sqlite3 = null;
@@ -29,13 +46,18 @@ function queryRows(sql, params = []) {
   });
 }
 
-async function streamDownloadToSAHPool(pool) {
-  postMessage({ type: "status", message: "Connecting to database download...", downloading: true });
-  let resp = await fetch(DB_FILENAME);
+async function fetchVariantResponse(cfg) {
+  let resp = await fetch(cfg.filename);
   if (!resp.ok) {
-    resp = await fetch("https://github.com/Levizor/pkgmap/releases/latest/download/pkgmap.db.zst");
-    if (!resp.ok) throw new Error(`Failed to download database: HTTP ${resp.status}`);
+    resp = await fetch(cfg.releaseUrl);
+    if (!resp.ok) throw new Error(`Failed to download ${cfg.label}: HTTP ${resp.status}`);
   }
+  return resp;
+}
+
+async function streamDownloadToSAHPool(pool, cfg) {
+  postMessage({ type: "status", message: `Connecting to ${cfg.label} download...`, downloading: true });
+  const resp = await fetchVariantResponse(cfg);
 
   const contentLength = resp.headers.get("content-length");
   const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
@@ -101,17 +123,13 @@ async function streamDownloadToSAHPool(pool) {
     return chunkQueue.shift();
   }
 
-  postMessage({ type: "status", message: "Streaming & decompressing database to persistent storage (OPFS)...", downloading: true });
-  await pool.importDb(OPFS_DB_NAME, nextChunk);
+  postMessage({ type: "status", message: `Streaming & decompressing ${cfg.label} to persistent storage (OPFS)...`, downloading: true });
+  await pool.importDb(cfg.opfsName, nextChunk);
 }
 
-async function downloadAndDecompressBuffer() {
-  postMessage({ type: "status", message: "Downloading database...", downloading: true });
-  let resp = await fetch(DB_FILENAME);
-  if (!resp.ok) {
-    resp = await fetch("https://github.com/Levizor/pkgmap/releases/latest/download/pkgmap.db.zst");
-    if (!resp.ok) throw new Error(`Failed to download database: HTTP ${resp.status}`);
-  }
+async function downloadAndDecompressBuffer(cfg) {
+  postMessage({ type: "status", message: `Downloading ${cfg.label}...`, downloading: true });
+  const resp = await fetchVariantResponse(cfg);
 
   const contentLength = resp.headers.get("content-length");
   const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
@@ -140,7 +158,7 @@ async function downloadAndDecompressBuffer() {
   }
   chunks.length = 0;
 
-  postMessage({ type: "status", message: "Decompressing database with fzstd..." });
+  postMessage({ type: "status", message: `Decompressing ${cfg.label} with fzstd...` });
   const decompressed = fzstd.decompress(compressed);
   compressed = null;
   if (decompressed.length > 20) {
@@ -150,117 +168,129 @@ async function downloadAndDecompressBuffer() {
   return decompressed;
 }
 
+async function openVariantDatabase(variant) {
+  currentVariant = variant === "full" ? "full" : "core";
+  const cfg = DB_CONFIGS[currentVariant];
+
+  if (db) {
+    try { db.close(); } catch (_) {}
+    db = null;
+  }
+
+  let opened = false;
+  let dbBytes = null;
+
+  // 1. Primary: SAHPool OPFS (fast, persistent, no COOP/COEP headers required)
+  if (typeof sqlite3.installOpfsSAHPoolVfs === "function") {
+    try {
+      if (!poolUtil) {
+        postMessage({ type: "status", message: "Connecting to persistent storage (OPFS)..." });
+        poolUtil = await sqlite3.installOpfsSAHPoolVfs({ name: "opfs-sahpool" });
+      }
+      const fileNames = poolUtil.getFileNames();
+
+      if (fileNames.includes(cfg.legacyName)) {
+        try { poolUtil.unlink(cfg.legacyName); } catch (_) {}
+      }
+
+      if (fileNames.includes(cfg.opfsName)) {
+        postMessage({ type: "status", message: `Opening ${cfg.label} from persistent storage (OPFS)...` });
+        try {
+          db = new poolUtil.OpfsSAHPoolDb(cfg.opfsName);
+          db.selectValue("SELECT count(*) FROM repositories;");
+          db.selectValue("SELECT count(*) FROM projects;");
+          opened = true;
+          storageBackend = "opfs-sahpool";
+        } catch (e) {
+          console.warn("Outdated or invalid SAHPool DB, unlinking:", e);
+          if (db) { try { db.close(); } catch (_) {} db = null; }
+          try { poolUtil.unlink(cfg.opfsName); } catch (_) {}
+        }
+      }
+
+      if (!opened) {
+        await streamDownloadToSAHPool(poolUtil, cfg);
+        postMessage({ type: "status", message: `Opening ${cfg.label} from persistent storage (OPFS)...` });
+        db = new poolUtil.OpfsSAHPoolDb(cfg.opfsName);
+        db.selectValue("SELECT count(*) FROM repositories;");
+        opened = true;
+        storageBackend = "opfs-sahpool";
+      }
+    } catch (sahErr) {
+      console.warn("SAHPool OPFS failed, trying standard OPFS / in-memory:", sahErr);
+      if (db) { try { db.close(); } catch (_) {} db = null; }
+      poolUtil = null;
+    }
+  }
+
+  // 2. Secondary fallback: Standard OPFS
+  if (!opened && sqlite3.opfs && sqlite3.oo1?.OpfsDb) {
+    try {
+      const exists = await sqlite3.opfs.entryExists(cfg.opfsName);
+      if (exists) {
+        postMessage({ type: "status", message: `Opening ${cfg.label} from persistent storage (OPFS)...` });
+        try {
+          db = new sqlite3.oo1.OpfsDb(cfg.opfsName);
+          db.selectValue("SELECT count(*) FROM repositories;");
+          db.selectValue("SELECT count(*) FROM projects;");
+          opened = true;
+          storageBackend = "opfs-standard";
+        } catch (existingErr) {
+          console.warn("Existing OPFS database invalid, removing:", existingErr);
+          if (db) { try { db.close(); } catch (_) {} db = null; }
+          await sqlite3.opfs.unlink(cfg.opfsName).catch(() => {});
+        }
+      }
+
+      if (!opened) {
+        dbBytes = await downloadAndDecompressBuffer(cfg);
+        postMessage({ type: "status", message: `Writing ${cfg.label} to persistent storage (OPFS)...` });
+        await sqlite3.oo1.OpfsDb.importDb(cfg.opfsName, dbBytes);
+        db = new sqlite3.oo1.OpfsDb(cfg.opfsName);
+        db.selectValue("SELECT count(*) FROM repositories;");
+        opened = true;
+        storageBackend = "opfs-standard";
+        dbBytes = null;
+      }
+    } catch (opfsErr) {
+      console.warn("Standard OPFS failed, falling back to in-memory:", opfsErr);
+      if (db) { try { db.close(); } catch (_) {} db = null; }
+      await sqlite3.opfs?.unlink?.(cfg.opfsName).catch(() => {});
+    }
+  }
+
+  // 3. Final fallback: in-memory
+  if (!opened) {
+    postMessage({ type: "status", message: `Loading ${cfg.label} in-memory (OPFS not available)...` });
+    if (!dbBytes) dbBytes = await downloadAndDecompressBuffer(cfg);
+    const p = sqlite3.wasm.allocFromTypedArray(dbBytes);
+    db = new sqlite3.oo1.DB();
+    const rc = sqlite3.capi.sqlite3_deserialize(
+      db.pointer, 'main', p, dbBytes.byteLength, dbBytes.byteLength,
+      sqlite3.capi.SQLITE_DESERIALIZE_FREEONCLOSE
+    );
+    db.checkRc(rc);
+    storageBackend = "in-memory";
+    dbBytes = null;
+  }
+
+  db.exec("PRAGMA cache_size = 2000;");
+
+  const allRepos = queryRows("SELECT id, name, family, package_count FROM repositories ORDER BY package_count DESC;");
+  postMessage({
+    type: "ready",
+    variant: currentVariant,
+    repoCount: allRepos.length,
+    allRepositories: allRepos,
+    storageBackend
+  });
+}
+
 async function init() {
   try {
     postMessage({ type: "status", message: "Initializing SQLite WebAssembly..." });
     sqlite3 = await self.sqlite3InitModule();
-
-    let opened = false;
-    let dbBytes = null;
-
-    // 1. Primary: SAHPool OPFS (fast, persistent, no COOP/COEP headers required)
-    if (typeof sqlite3.installOpfsSAHPoolVfs === "function") {
-      try {
-        postMessage({ type: "status", message: "Connecting to persistent storage (OPFS)..." });
-        poolUtil = await sqlite3.installOpfsSAHPoolVfs({ name: "opfs-sahpool" });
-        const fileNames = poolUtil.getFileNames();
-
-        // Clean up any legacy unslashed entry
-        if (fileNames.includes("pkgmap.db")) {
-          try { poolUtil.unlink("pkgmap.db"); } catch (_) {}
-        }
-
-        if (fileNames.includes(OPFS_DB_NAME)) {
-          postMessage({ type: "status", message: "Opening database from persistent storage (OPFS)..." });
-          try {
-            db = new poolUtil.OpfsSAHPoolDb(OPFS_DB_NAME);
-            db.selectValue("SELECT count(*) FROM repositories;");
-            db.selectValue("SELECT count(*) FROM projects;");
-            opened = true;
-            storageBackend = "opfs-sahpool";
-          } catch (e) {
-            console.warn("Outdated or invalid SAHPool DB, unlinking:", e);
-            if (db) { try { db.close(); } catch (_) {} db = null; }
-            try { poolUtil.unlink(OPFS_DB_NAME); } catch (_) {}
-          }
-        }
-
-        if (!opened) {
-          await streamDownloadToSAHPool(poolUtil);
-          postMessage({ type: "status", message: "Opening database from persistent storage (OPFS)..." });
-          db = new poolUtil.OpfsSAHPoolDb(OPFS_DB_NAME);
-          db.selectValue("SELECT count(*) FROM repositories;");
-          opened = true;
-          storageBackend = "opfs-sahpool";
-        }
-      } catch (sahErr) {
-        console.warn("SAHPool OPFS failed, trying standard OPFS / in-memory:", sahErr);
-        if (db) { try { db.close(); } catch (_) {} db = null; }
-        poolUtil = null;
-      }
-    }
-
-    // 2. Secondary fallback: Standard OPFS
-    if (!opened && sqlite3.opfs && sqlite3.oo1?.OpfsDb) {
-      try {
-        const exists = await sqlite3.opfs.entryExists(OPFS_DB_NAME);
-        if (exists) {
-          postMessage({ type: "status", message: "Opening database from persistent storage (OPFS)..." });
-          try {
-            db = new sqlite3.oo1.OpfsDb(OPFS_DB_NAME);
-            db.selectValue("SELECT count(*) FROM repositories;");
-            db.selectValue("SELECT count(*) FROM projects;");
-            opened = true;
-            storageBackend = "opfs-standard";
-          } catch (existingErr) {
-            console.warn("Existing OPFS database invalid, removing:", existingErr);
-            if (db) { try { db.close(); } catch (_) {} db = null; }
-            await sqlite3.opfs.unlink(OPFS_DB_NAME).catch(() => {});
-          }
-        }
-
-        if (!opened) {
-          dbBytes = await downloadAndDecompressBuffer();
-          postMessage({ type: "status", message: "Writing database to persistent storage (OPFS)..." });
-          await sqlite3.oo1.OpfsDb.importDb(OPFS_DB_NAME, dbBytes);
-          db = new sqlite3.oo1.OpfsDb(OPFS_DB_NAME);
-          db.selectValue("SELECT count(*) FROM repositories;");
-          opened = true;
-          storageBackend = "opfs-standard";
-          dbBytes = null;
-        }
-      } catch (opfsErr) {
-        console.warn("Standard OPFS failed, falling back to in-memory:", opfsErr);
-        if (db) { try { db.close(); } catch (_) {} db = null; }
-        await sqlite3.opfs?.unlink?.(OPFS_DB_NAME).catch(() => {});
-      }
-    }
-
-    // 3. Final fallback: in-memory
-    if (!opened) {
-      postMessage({ type: "status", message: "Loading database in-memory (OPFS not available)..." });
-      if (!dbBytes) dbBytes = await downloadAndDecompressBuffer();
-      const p = sqlite3.wasm.allocFromTypedArray(dbBytes);
-      db = new sqlite3.oo1.DB();
-      const rc = sqlite3.capi.sqlite3_deserialize(
-        db.pointer, 'main', p, dbBytes.byteLength, dbBytes.byteLength,
-        sqlite3.capi.SQLITE_DESERIALIZE_FREEONCLOSE
-      );
-      db.checkRc(rc);
-      storageBackend = "in-memory";
-      dbBytes = null;
-    }
-
-    db.exec("PRAGMA cache_size = 2000;");
-
-    const allRepos = queryRows("SELECT id, name, family, package_count FROM repositories ORDER BY package_count DESC;");
-    postMessage({
-      type: "ready",
-      repoCount: allRepos.length,
-      allRepositories: allRepos,
-      storageBackend
-    });
-
+    await openVariantDatabase(currentVariant);
   } catch (err) {
     postMessage({ type: "error", message: err.message || String(err) });
   }
@@ -318,7 +348,12 @@ function resolveRepos(repoSlug) {
   const row = queryRows("SELECT id, name, family FROM repositories WHERE name = ? LIMIT 1;", [slug])[0];
   if (row) return [row];
   const alias = queryRows("SELECT target_repo FROM repository_aliases WHERE alias = ? LIMIT 1;", [slug])[0];
-  return alias ? queryRows("SELECT id, name, family FROM repositories WHERE name = ? LIMIT 1;", [alias.target_repo]) : [];
+  if (alias) {
+    const aliasRow = queryRows("SELECT id, name, family FROM repositories WHERE name = ? LIMIT 1;", [alias.target_repo])[0];
+    if (aliasRow) return [aliasRow];
+  }
+  const prefixRow = queryRows("SELECT id, name, family FROM repositories WHERE name LIKE ? ORDER BY package_count DESC LIMIT 1;", [slug + "_%"])[0];
+  return prefixRow ? [prefixRow] : [];
 }
 
 function handleMatrix(queryId, name) {
@@ -424,11 +459,15 @@ function handleBatchResolve(queryId, packages, fromRepo, toRepo) {
 }
 
 self.onmessage = (e) => {
-  const { type, id, query, name, packages, fromRepo, toRepo } = e.data;
+  const { type, id, query, name, packages, fromRepo, toRepo, variant } = e.data;
   if (type === "suggest") handleSuggest(id, query);
   else if (type === "matrix") handleMatrix(id, name);
   else if (type === "batch") handleBatchResolve(id, packages, fromRepo, toRepo);
-  else if (type === "clear_cache") {
+  else if (type === "switch_variant") {
+    openVariantDatabase(variant).catch((err) => {
+      postMessage({ type: "error", message: err.message || String(err) });
+    });
+  } else if (type === "clear_cache") {
     (async () => {
       try {
         if (db) {
@@ -436,16 +475,26 @@ self.onmessage = (e) => {
           db = null;
         }
         if (poolUtil) {
-          try { poolUtil.unlink(OPFS_DB_NAME); } catch (_) {}
-          try { poolUtil.unlink("pkgmap.db"); } catch (_) {}
+          for (const existing of poolUtil.getFileNames()) {
+            try { poolUtil.unlink(existing); } catch (_) {}
+          }
+          for (const cfg of Object.values(DB_CONFIGS)) {
+            try { poolUtil.unlink(cfg.opfsName); } catch (_) {}
+            try { poolUtil.unlink(cfg.legacyName); } catch (_) {}
+          }
         }
         if (sqlite3?.opfs) {
-          await sqlite3.opfs.unlink(OPFS_DB_NAME).catch(() => {});
+          for (const cfg of Object.values(DB_CONFIGS)) {
+            await sqlite3.opfs.unlink(cfg.opfsName).catch(() => {});
+            await sqlite3.opfs.unlink(cfg.legacyName).catch(() => {});
+          }
         }
         try {
           const root = await navigator.storage?.getDirectory?.();
           if (root) {
-            await root.removeEntry("pkgmap.db").catch(() => {});
+            for (const cfg of Object.values(DB_CONFIGS)) {
+              await root.removeEntry(cfg.legacyName).catch(() => {});
+            }
             await root.removeEntry(".opfs-sahpool", { recursive: true }).catch(() => {});
           }
         } catch (_) {}

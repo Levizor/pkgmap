@@ -33,10 +33,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download latest pkgmap.db.zst
+      - name: Download latest database releases
         run: |
-          gh release download --repo ${{ github.repository }} --pattern 'pkgmap.db.zst' --dir web/ --clobber
-          ls -lh web/pkgmap.db.zst
+          gh release download --repo ${{ github.repository }} --pattern 'pkgmap*.db.zst' --dir web/ --clobber
+          ls -lh web/pkgmap*.db.zst
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
