@@ -8,6 +8,7 @@ from pkgmap.db import (
     DatabaseVariant,
     get_database_path,
     resolve_cli_variant,
+    set_default_variant,
     update_database,
 )
 from pkgmap.resolver import (
@@ -31,7 +32,9 @@ def _select_variant(core: bool, full: bool) -> DatabaseVariant:
             fg=typer.colors.RED,
         )
         raise typer.Exit(code=2)
-    return resolve_cli_variant(full=full, core=core)
+    variant = resolve_cli_variant(full=full, core=core)
+    set_default_variant(variant)
+    return variant
 
 
 @cli_app.callback()
@@ -113,16 +116,10 @@ def resolve_cmd(
 
     if from_repo and not project:
         results = resolve_all(
-            package,
-            from_repo=from_repo,
-            to_repo=to_repo,
-            db_path=db_path,
-            variant=variant,
+            package, from_repo=from_repo, to_repo=to_repo, db_path=db_path
         )
     else:
-        results = resolve_project(
-            package, to_repo=to_repo, db_path=db_path, variant=variant
-        )
+        results = resolve_project(package, to_repo=to_repo, db_path=db_path)
 
     if not results:
         if json_output:
@@ -141,9 +138,7 @@ def resolve_cmd(
             typer.secho(msg, fg=typer.colors.YELLOW)
 
             requested_repos = [r for r in (from_repo, to_repo) if r]
-            missing_repos = get_missing_repositories(
-                requested_repos, db_path=db_path, variant=variant
-            )
+            missing_repos = get_missing_repositories(requested_repos, db_path=db_path)
             if missing_repos and variant == "core":
                 missing_str = ", ".join(f"'{r}'" for r in missing_repos)
                 typer.secho(
@@ -216,8 +211,8 @@ def repos_cmd(
     ] = None,
 ) -> None:
     """List all available distributions and repositories."""
-    variant = _select_variant(core=core, full=full)
-    repos = list_repositories(db_path=db_path, variant=variant)
+    _select_variant(core=core, full=full)
+    repos = list_repositories(db_path=db_path)
     typer.echo(f"{'Repository':<25} {'Family':<15} {'Packages':>10}")
     typer.echo("-" * 52)
     for r in sorted(repos, key=lambda x: x.name):
