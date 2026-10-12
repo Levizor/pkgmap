@@ -37,7 +37,8 @@ async function streamDownloadToSAHPool(pool) {
     if (!resp.ok) throw new Error(`Failed to download database: HTTP ${resp.status}`);
   }
 
-  const totalBytes = parseInt(resp.headers.get("content-length") || "38781482", 10);
+  const contentLength = resp.headers.get("content-length");
+  const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
   const reader = resp.body.getReader();
 
   const chunkQueue = [];
@@ -66,9 +67,9 @@ async function streamDownloadToSAHPool(pool) {
         received += value.length;
         postMessage({
           type: "progress",
-          percent: Math.min(100, Math.round((received / totalBytes) * 100)),
+          percent: totalBytes > 0 ? Math.min(100, Math.round((received / totalBytes) * 100)) : null,
           receivedMb: (received / (1024 * 1024)).toFixed(1),
-          totalMb: (totalBytes / (1024 * 1024)).toFixed(1)
+          totalMb: totalBytes > 0 ? (totalBytes / (1024 * 1024)).toFixed(1) : null
         });
         decompressor.push(value, false);
         while (chunkQueue.length > 16) {
@@ -105,14 +106,15 @@ async function streamDownloadToSAHPool(pool) {
 }
 
 async function downloadAndDecompressBuffer() {
-  postMessage({ type: "status", message: "Downloading database (~37 MB compressed)...", downloading: true });
+  postMessage({ type: "status", message: "Downloading database...", downloading: true });
   let resp = await fetch(DB_FILENAME);
   if (!resp.ok) {
     resp = await fetch("https://github.com/Levizor/pkgmap/releases/latest/download/pkgmap.db.zst");
     if (!resp.ok) throw new Error(`Failed to download database: HTTP ${resp.status}`);
   }
 
-  const totalBytes = parseInt(resp.headers.get("content-length") || "38781482", 10);
+  const contentLength = resp.headers.get("content-length");
+  const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
   const reader = resp.body.getReader();
   let received = 0;
   const chunks = [];
@@ -124,9 +126,9 @@ async function downloadAndDecompressBuffer() {
     received += value.length;
     postMessage({
       type: "progress",
-      percent: Math.min(100, Math.round((received / totalBytes) * 100)),
+      percent: totalBytes > 0 ? Math.min(100, Math.round((received / totalBytes) * 100)) : null,
       receivedMb: (received / (1024 * 1024)).toFixed(1),
-      totalMb: (totalBytes / (1024 * 1024)).toFixed(1)
+      totalMb: totalBytes > 0 ? (totalBytes / (1024 * 1024)).toFixed(1) : null
     });
   }
 
