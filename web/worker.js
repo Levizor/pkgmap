@@ -62,20 +62,23 @@ async function init() {
         });
       }
 
-      const compressed = new Uint8Array(received);
+      let compressed = new Uint8Array(received);
       let offset = 0;
       for (const chunk of chunks) {
         compressed.set(chunk, offset);
         offset += chunk.length;
       }
+      chunks.length = 0;
 
       postMessage({ type: "status", message: "Decompressing database with fzstd..." });
-      dbBytes = fzstd.decompress(compressed).slice();
+      dbBytes = fzstd.decompress(compressed);
+      compressed = null;
       if (cache) cache.put(CACHE_KEY, new Response(dbBytes)).catch(e => console.warn("Cache write failed:", e));
     }
 
     postMessage({ type: "status", message: "Opening SQLite database..." });
     db = new SQL.Database(dbBytes);
+    dbBytes = null;
 
     const allRepos = queryRows("SELECT id, name, family, package_count FROM repositories ORDER BY package_count DESC;");
     postMessage({ type: "ready", repoCount: allRepos.length, allRepositories: allRepos });
