@@ -108,7 +108,7 @@ def resolve_cmd(
     ] = False,
     core: Annotated[
         bool,
-        typer.Option("--core", help="Use the core database (top 20 repositories)"),
+        typer.Option("--core", help="Use the core database (top 10 repositories)"),
     ] = False,
     full: Annotated[
         bool,
@@ -213,7 +213,7 @@ def resolve_cmd(
 def update_cmd(
     core: Annotated[
         bool,
-        typer.Option("--core", help="Download the core database (top 20 repositories)"),
+        typer.Option("--core", help="Download the core database (top 10 repositories)"),
     ] = False,
     full: Annotated[
         bool,

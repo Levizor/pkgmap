@@ -9,17 +9,7 @@ repositories = [
     "alpine_edge",
     "opensuse_tumbleweed",
     "gentoo",
-    "void_x86_64",
-    "freebsd",
-    "homebrew",
-    "macports",
-    "gnuguix",
-    "pkgsrc_current",
-    "chimera",
-    "solus",
-    "openbsd",
-    "epel",
-    "termux",
+    "void_x86_64"
 ]
 
 [aliases]
