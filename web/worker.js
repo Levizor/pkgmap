@@ -37,7 +37,7 @@ async function streamDownloadToSAHPool(pool) {
     if (!resp.ok) throw new Error(`Failed to download database: HTTP ${resp.status}`);
   }
 
-  const totalBytes = parseInt(resp.headers.get("content-length") || "69535000", 10);
+  const totalBytes = parseInt(resp.headers.get("content-length") || "38781482", 10);
   const reader = resp.body.getReader();
 
   const chunkQueue = [];
@@ -105,14 +105,14 @@ async function streamDownloadToSAHPool(pool) {
 }
 
 async function downloadAndDecompressBuffer() {
-  postMessage({ type: "status", message: "Downloading database (~70 MB compressed)...", downloading: true });
+  postMessage({ type: "status", message: "Downloading database (~37 MB compressed)...", downloading: true });
   let resp = await fetch(DB_FILENAME);
   if (!resp.ok) {
     resp = await fetch("https://github.com/Levizor/pkgmap/releases/latest/download/pkgmap.db.zst");
     if (!resp.ok) throw new Error(`Failed to download database: HTTP ${resp.status}`);
   }
 
-  const totalBytes = parseInt(resp.headers.get("content-length") || "69535000", 10);
+  const totalBytes = parseInt(resp.headers.get("content-length") || "38781482", 10);
   const reader = resp.body.getReader();
   let received = 0;
   const chunks = [];
@@ -173,10 +173,11 @@ async function init() {
           try {
             db = new poolUtil.OpfsSAHPoolDb(OPFS_DB_NAME);
             db.selectValue("SELECT count(*) FROM repositories;");
+            db.selectValue("SELECT count(*) FROM projects;");
             opened = true;
             storageBackend = "opfs-sahpool";
           } catch (e) {
-            console.warn("Corrupt SAHPool DB, unlinking:", e);
+            console.warn("Outdated or invalid SAHPool DB, unlinking:", e);
             if (db) { try { db.close(); } catch (_) {} db = null; }
             try { poolUtil.unlink(OPFS_DB_NAME); } catch (_) {}
           }
@@ -206,6 +207,7 @@ async function init() {
           try {
             db = new sqlite3.oo1.OpfsDb(OPFS_DB_NAME);
             db.selectValue("SELECT count(*) FROM repositories;");
+            db.selectValue("SELECT count(*) FROM projects;");
             opened = true;
             storageBackend = "opfs-standard";
           } catch (existingErr) {
