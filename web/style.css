@@ -268,26 +268,20 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
+  width: 1.625rem;
   height: 1.5rem;
-  padding: 0 0.45rem;
+  padding: 0;
   border-radius: 0.25rem;
   background-color: #27272a;
-  color: #a1a1aa;
   cursor: pointer;
   text-decoration: none;
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color 0.15s, opacity 0.15s;
   border: none;
   user-select: none;
 }
 
 .btn-repology-action:hover {
   background-color: #3f3f46;
-  color: #34d399;
-}
-
-.btn-repology-action:hover svg {
-  color: #34d399;
 }
 
 /* ==========================================================================
@@ -425,10 +419,10 @@ body {
     display: block !important;
   }
 
-  /* Touch-friendly buttons on mobile */
   .btn-repology-action {
+    width: 1.875rem !important;
     height: 1.875rem !important;
-    padding: 0 0.5rem !important;
+    padding: 0 !important;
     border-radius: 0.375rem !important;
   }
 
