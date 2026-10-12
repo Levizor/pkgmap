@@ -53,6 +53,21 @@ def pipeline_build(
             help="Path for the output SQLite database",
         ),
     ] = Path("pkgmap.db"),
+    core_output_file: Annotated[
+        Path | None,
+        typer.Option(
+            "-c",
+            "--core-output-path",
+            help="Optional path for the core subset SQLite database (e.g. pkgmap-core.db)",
+        ),
+    ] = None,
+    repos_config: Annotated[
+        Path | None,
+        typer.Option(
+            "--repos-config",
+            help="Optional path to repos.toml configuration file",
+        ),
+    ] = None,
     batch_size: Annotated[
         int,
         typer.Option(
@@ -73,6 +88,8 @@ def pipeline_build(
     pipeline.main(
         dump_file=input_dump,
         output_file=output_file,
+        core_output_file=core_output_file,
+        repos_config=repos_config,
         batch_size=batch_size,
         release_notes=release_notes,
         dump_date=dump_date,
