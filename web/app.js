@@ -23,7 +23,7 @@ const elStatusContainer = $("status-container"), elStatusMessage = $("status-mes
   elAppContainer = $("app-container"), elSearchInput = $("search-input"),
   elSuggestionsContainer = $("suggestions-container"), elSuggestionsList = $("suggestions-list"),
   elResultsContainer = $("results-container"), elResultsSummary = $("results-summary"),
-  elResultsEffname = $("results-effname"), elResultsVersion = $("results-version"),
+  elResultsEffname = $("results-effname"), elResultsRepologyLink = $("results-repology-link"),
   elResultsTargets = $("results-targets"), elResultsEmpty = $("results-empty"),
   elResultsTableWrap = $("results-table-wrap"), elResultsTable = $("results-table"),
   elClearCacheBtn = $("clear-cache-btn"), elDistroPills = $("distro-pills"),
@@ -259,13 +259,11 @@ function renderResults() {
   elResultsSummary.classList.remove("hidden");
   elResultsTableWrap.classList.remove("hidden");
 
-  const { effname, totalDistros, latestVersion, allPackages } = currentPackageData;
+  const { effname, totalDistros, allPackages } = currentPackageData;
   elResultsEffname.textContent = effname;
-  if (latestVersion) {
-    elResultsVersion.textContent = `v${latestVersion}`;
-    elResultsVersion.classList.remove("hidden");
-  } else {
-    elResultsVersion.classList.add("hidden");
+  if (elResultsRepologyLink) {
+    elResultsRepologyLink.href = `https://repology.org/project/${encodeURIComponent(effname)}/information`;
+    elResultsRepologyLink.title = `View ${effname} on Repology`;
   }
   elResultsTargets.textContent = `${totalDistros} repo targets`;
 
@@ -506,6 +504,19 @@ function renderBatchResults(data) {
     for (const r of results) {
       const tr = tmplBatchRow.content.cloneNode(true);
       tr.querySelector(".row-input").textContent = r.input;
+      const projName = r.effname;
+      const projLink = tr.querySelector(".row-project-link");
+      const projEmpty = tr.querySelector(".row-project-empty");
+      if (projName && projLink) {
+        projLink.href = `https://repology.org/project/${encodeURIComponent(projName)}/information`;
+        projLink.title = `View ${projName} on Repology`;
+        const projNameEl = tr.querySelector(".row-project-name");
+        if (projNameEl) projNameEl.textContent = projName;
+        projLink.classList.remove("hidden");
+      } else if (projEmpty) {
+        projEmpty.classList.remove("hidden");
+      }
+
       if (r.resolved) {
         tr.querySelector(".row-target").textContent = r.targetName;
         const aur = tr.querySelector(".row-aur");

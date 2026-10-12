@@ -258,8 +258,28 @@ body {
   user-select: none;
 }
 
-.hidden {
-  display: none !important;
+#results-repology-link {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.row-project-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: #a1a1aa;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.row-project-link:hover {
+  color: #34d399;
+}
+
+.row-project-link:hover svg {
+  color: #34d399;
 }
 
 /* ==========================================================================
@@ -352,7 +372,7 @@ body {
   .batch-row {
     display: grid !important;
     grid-template-columns: 1fr auto !important;
-    grid-template-rows: auto auto !important;
+    grid-template-rows: auto auto auto !important;
     padding: 0.75rem 1rem !important;
     gap: 0.35rem 0.75rem !important;
     align-items: center !important;
@@ -383,9 +403,25 @@ body {
     min-width: 0 !important;
   }
 
+  .batch-row .col-batch-project {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+    padding: 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .batch-row .col-batch-project .row-project-empty {
+    display: none !important;
+  }
+
+  .batch-row .col-batch-project .row-project-link:not(.hidden) {
+    margin-top: 0.15rem;
+  }
+
   .batch-row .col-action {
     grid-column: 2 !important;
-    grid-row: 1 / span 2 !important;
+    grid-row: 1 / span 3 !important;
     padding: 0 !important;
     width: auto !important;
     min-width: 0 !important;
