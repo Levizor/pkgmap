@@ -15,13 +15,15 @@ def test_cli_resolve_success(tmp_path: Path) -> None:
     db_path = tmp_path / "test_cli.sqlite"
     conn = sqlite3.connect(db_path)
     conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
-    CREATE INDEX idx_effname ON packages (effname);
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
+    CREATE INDEX idx_package_name ON packages (package_name);
 
+    INSERT INTO projects VALUES (1, 'bat');
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10), (2, 'arch', 'arch', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0'), (2, 'bat', 'bat', '0.24.0');
+    INSERT INTO packages VALUES (1, 1, 'batcat', '0.24.0'), (1, 2, 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -49,13 +51,15 @@ def test_cli_resolve_json(tmp_path: Path) -> None:
     db_path = tmp_path / "test_cli.sqlite"
     conn = sqlite3.connect(db_path)
     conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
-    CREATE INDEX idx_effname ON packages (effname);
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
+    CREATE INDEX idx_package_name ON packages (package_name);
 
+    INSERT INTO projects VALUES (1, 'bat');
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10), (2, 'arch', 'arch', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0'), (2, 'bat', 'bat', '0.24.0');
+    INSERT INTO packages VALUES (1, 1, 'batcat', '0.24.0'), (1, 2, 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -86,9 +90,10 @@ def test_cli_resolve_not_found(tmp_path: Path) -> None:
     db_path = tmp_path / "test_cli.sqlite"
     conn = sqlite3.connect(db_path)
     conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
     """)
     conn.commit()
     conn.close()
@@ -116,9 +121,10 @@ def test_cli_repos(tmp_path: Path) -> None:
     db_path = tmp_path / "test_cli.sqlite"
     conn = sqlite3.connect(db_path)
     conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
 
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 50000);
     """)
@@ -137,13 +143,15 @@ def test_cli_resolve_project_implicit(tmp_path: Path) -> None:
     db_path = tmp_path / "test_cli.sqlite"
     conn = sqlite3.connect(db_path)
     conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
-    CREATE INDEX idx_effname ON packages (effname);
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
+    CREATE INDEX idx_package_name ON packages (package_name);
 
+    INSERT INTO projects VALUES (1, 'bat');
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0');
+    INSERT INTO packages VALUES (1, 1, 'batcat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -163,13 +171,15 @@ def test_cli_resolve_project_explicit_flag(tmp_path: Path) -> None:
     db_path = tmp_path / "test_cli.sqlite"
     conn = sqlite3.connect(db_path)
     conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
-    CREATE INDEX idx_effname ON packages (effname);
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
+    CREATE INDEX idx_package_name ON packages (package_name);
 
+    INSERT INTO projects VALUES (1, 'bat');
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0');
+    INSERT INTO packages VALUES (1, 1, 'batcat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -198,13 +208,15 @@ def test_cli_resolve_all_repos_without_flags(tmp_path: Path) -> None:
     db_path = tmp_path / "test_cli.sqlite"
     conn = sqlite3.connect(db_path)
     conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
-    CREATE INDEX idx_effname ON packages (effname);
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
+    CREATE INDEX idx_package_name ON packages (package_name);
 
+    INSERT INTO projects VALUES (1, 'bat');
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10), (2, 'arch', 'arch', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0'), (2, 'bat', 'bat', '0.24.0');
+    INSERT INTO packages VALUES (1, 1, 'batcat', '0.24.0'), (1, 2, 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -224,13 +236,15 @@ def test_cli_resolve_all_repos_with_from(tmp_path: Path) -> None:
     db_path = tmp_path / "test_cli.sqlite"
     conn = sqlite3.connect(db_path)
     conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
-    CREATE INDEX idx_effname ON packages (effname);
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
+    CREATE INDEX idx_package_name ON packages (package_name);
 
+    INSERT INTO projects VALUES (1, 'bat');
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10), (2, 'arch', 'arch', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0'), (2, 'bat', 'bat', '0.24.0');
+    INSERT INTO packages VALUES (1, 1, 'batcat', '0.24.0'), (1, 2, 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -250,13 +264,15 @@ def test_cli_resolve_all_repos_json(tmp_path: Path) -> None:
     db_path = tmp_path / "test_cli.sqlite"
     conn = sqlite3.connect(db_path)
     conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
-    CREATE INDEX idx_effname ON packages (effname);
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
+    CREATE INDEX idx_package_name ON packages (package_name);
 
+    INSERT INTO projects VALUES (1, 'bat');
     INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 10), (2, 'arch', 'arch', 10);
-    INSERT INTO packages VALUES (1, 'batcat', 'bat', '0.24.0'), (2, 'bat', 'bat', '0.24.0');
+    INSERT INTO packages VALUES (1, 1, 'batcat', '0.24.0'), (1, 2, 'bat', '0.24.0');
     """)
     conn.commit()
     conn.close()
@@ -278,9 +294,10 @@ def test_cli_resolve_all_repos_not_found(tmp_path: Path) -> None:
     db_path = tmp_path / "test_cli.sqlite"
     conn = sqlite3.connect(db_path)
     conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
     CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
     CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
-    CREATE TABLE packages (repo_id INTEGER, package_name TEXT, effname TEXT, version TEXT, PRIMARY KEY (repo_id, package_name)) WITHOUT ROWID;
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
     """)
     conn.commit()
     conn.close()

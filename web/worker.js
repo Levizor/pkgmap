@@ -37,7 +37,8 @@ async function streamDownloadToSAHPool(pool) {
     if (!resp.ok) throw new Error(`Failed to download database: HTTP ${resp.status}`);
   }
 
-  const totalBytes = parseInt(resp.headers.get("content-length") || "69535000", 10);
+  const contentLength = resp.headers.get("content-length");
+  const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
   const reader = resp.body.getReader();
 
   const chunkQueue = [];
@@ -66,9 +67,9 @@ async function streamDownloadToSAHPool(pool) {
         received += value.length;
         postMessage({
           type: "progress",
-          percent: Math.min(100, Math.round((received / totalBytes) * 100)),
+          percent: totalBytes > 0 ? Math.min(100, Math.round((received / totalBytes) * 100)) : null,
           receivedMb: (received / (1024 * 1024)).toFixed(1),
-          totalMb: (totalBytes / (1024 * 1024)).toFixed(1)
+          totalMb: totalBytes > 0 ? (totalBytes / (1024 * 1024)).toFixed(1) : null
         });
         decompressor.push(value, false);
         while (chunkQueue.length > 16) {
@@ -105,14 +106,15 @@ async function streamDownloadToSAHPool(pool) {
 }
 
 async function downloadAndDecompressBuffer() {
-  postMessage({ type: "status", message: "Downloading database (~70 MB compressed)...", downloading: true });
+  postMessage({ type: "status", message: "Downloading database...", downloading: true });
   let resp = await fetch(DB_FILENAME);
   if (!resp.ok) {
     resp = await fetch("https://github.com/Levizor/pkgmap/releases/latest/download/pkgmap.db.zst");
     if (!resp.ok) throw new Error(`Failed to download database: HTTP ${resp.status}`);
   }
 
-  const totalBytes = parseInt(resp.headers.get("content-length") || "69535000", 10);
+  const contentLength = resp.headers.get("content-length");
+  const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
   const reader = resp.body.getReader();
   let received = 0;
   const chunks = [];
@@ -124,9 +126,9 @@ async function downloadAndDecompressBuffer() {
     received += value.length;
     postMessage({
       type: "progress",
-      percent: Math.min(100, Math.round((received / totalBytes) * 100)),
+      percent: totalBytes > 0 ? Math.min(100, Math.round((received / totalBytes) * 100)) : null,
       receivedMb: (received / (1024 * 1024)).toFixed(1),
-      totalMb: (totalBytes / (1024 * 1024)).toFixed(1)
+      totalMb: totalBytes > 0 ? (totalBytes / (1024 * 1024)).toFixed(1) : null
     });
   }
 
@@ -173,10 +175,11 @@ async function init() {
           try {
             db = new poolUtil.OpfsSAHPoolDb(OPFS_DB_NAME);
             db.selectValue("SELECT count(*) FROM repositories;");
+            db.selectValue("SELECT count(*) FROM projects;");
             opened = true;
             storageBackend = "opfs-sahpool";
           } catch (e) {
-            console.warn("Corrupt SAHPool DB, unlinking:", e);
+            console.warn("Outdated or invalid SAHPool DB, unlinking:", e);
             if (db) { try { db.close(); } catch (_) {} db = null; }
             try { poolUtil.unlink(OPFS_DB_NAME); } catch (_) {}
           }
@@ -206,6 +209,7 @@ async function init() {
           try {
             db = new sqlite3.oo1.OpfsDb(OPFS_DB_NAME);
             db.selectValue("SELECT count(*) FROM repositories;");
+            db.selectValue("SELECT count(*) FROM projects;");
             opened = true;
             storageBackend = "opfs-standard";
           } catch (existingErr) {
@@ -267,18 +271,18 @@ function handleSuggest(queryId, q) {
   const term = q.trim().toLowerCase();
   try {
     const upper = term.slice(0, -1) + String.fromCharCode(term.charCodeAt(term.length - 1) + 1);
-    const effnames = queryRows("SELECT DISTINCT effname FROM packages WHERE effname >= ? AND effname < ? LIMIT 8;", [term, upper]).map(r => r.effname);
+    const effnames = queryRows("SELECT name FROM projects WHERE name >= ? AND name < ? LIMIT 8;", [term, upper]).map(r => r.name);
 
     if (!effnames.includes(term) && term.length >= 2) {
-      const pkgRow = queryRows("SELECT effname FROM packages WHERE package_name = ? LIMIT 1;", [term])[0];
-      if (pkgRow && !effnames.includes(pkgRow.effname)) effnames.unshift(pkgRow.effname);
+      const pkgRow = queryRows("SELECT pr.name FROM packages p JOIN projects pr ON p.project_id = pr.id WHERE p.package_name = ? LIMIT 1;", [term])[0];
+      if (pkgRow && !effnames.includes(pkgRow.name)) effnames.unshift(pkgRow.name);
     }
 
     const limited = effnames.slice(0, 8);
     if (!limited.length) return postMessage({ type: "suggest_result", id: queryId, query: term, suggestions: [] });
 
     const counts = Object.fromEntries(
-      queryRows(`SELECT effname, count(*) as c FROM packages WHERE effname IN (${limited.map(() => "?").join(",")}) GROUP BY effname;`, limited).map(r => [r.effname, r.c])
+      queryRows(`SELECT pr.name, count(*) as c FROM projects pr JOIN packages p ON pr.id = p.project_id WHERE pr.name IN (${limited.map(() => "?").join(",")}) GROUP BY pr.name;`, limited).map(r => [r.name, r.c])
     );
     const suggestions = limited.map(name => ({ effname: name, distro_count: counts[name] || 1 }));
     suggestions.sort((a, b) => (a.effname === term ? -1 : b.effname === term ? 1 : b.distro_count - a.distro_count));
@@ -292,16 +296,17 @@ function handleSuggest(queryId, q) {
 function resolveCanonicalEffname(term) {
   if (!db || !term) return null;
   const lower = term.trim().toLowerCase();
-  const q = (sql, p) => queryRows(sql, p)[0]?.effname;
+  const qProj = (sql, p) => queryRows(sql, p)[0]?.name;
+  const qPkg = (sql, p) => queryRows(sql, p)[0]?.name;
   if (lower.length >= 2) {
     const upper = lower.slice(0, -1) + String.fromCharCode(lower.charCodeAt(lower.length - 1) + 1);
-    return q("SELECT effname FROM packages WHERE effname = ? LIMIT 1;", [lower])
-      || q("SELECT effname FROM packages WHERE package_name = ? LIMIT 1;", [lower])
-      || q("SELECT effname FROM packages WHERE effname >= ? AND effname < ? LIMIT 1;", [lower, upper])
-      || q("SELECT effname FROM packages WHERE package_name LIKE ? || '%' LIMIT 1;", [lower]);
+    return qProj("SELECT name FROM projects WHERE name = ? LIMIT 1;", [lower])
+      || qPkg("SELECT pr.name FROM packages p JOIN projects pr ON p.project_id = pr.id WHERE p.package_name = ? LIMIT 1;", [lower])
+      || qProj("SELECT name FROM projects WHERE name >= ? AND name < ? LIMIT 1;", [lower, upper])
+      || qPkg("SELECT pr.name FROM packages p JOIN projects pr ON p.project_id = pr.id WHERE p.package_name LIKE ? || '%' LIMIT 1;", [lower]);
   }
-  return q("SELECT effname FROM packages WHERE effname = ? LIMIT 1;", [lower])
-    || q("SELECT effname FROM packages WHERE package_name = ? LIMIT 1;", [lower]);
+  return qProj("SELECT name FROM projects WHERE name = ? LIMIT 1;", [lower])
+    || qPkg("SELECT pr.name FROM packages p JOIN projects pr ON p.project_id = pr.id WHERE p.package_name = ? LIMIT 1;", [lower]);
 }
 
 function resolveRepos(repoSlug) {
@@ -325,8 +330,10 @@ function handleMatrix(queryId, name) {
 
     const allPackages = queryRows(`
       SELECT r.name as repo_name, r.family as repo_family, p.package_name, p.version, r.package_count
-      FROM packages p JOIN repositories r ON p.repo_id = r.id
-      WHERE p.effname = ?
+      FROM projects pr
+      JOIN packages p ON pr.id = p.project_id
+      JOIN repositories r ON p.repo_id = r.id
+      WHERE pr.name = ?
       ORDER BY r.package_count DESC;
     `, [effname]);
 
@@ -373,16 +380,18 @@ function handleBatchResolve(queryId, packages, fromRepo, toRepo) {
     }
 
     const uniqueInputs = [...new Set(packages.map(p => p.trim()).filter(Boolean))];
-    const queryDst = (field, val) => queryRows(`SELECT p.package_name, p.version, p.effname, r.name as dst_repo_name FROM packages p JOIN repositories r ON p.repo_id = r.id WHERE p.repo_id IN (${dstIn}) AND p.${field} = ?;`, [val]);
-    const queryStrict = (field, val) => queryRows(`SELECT dst.package_name, dst.version, dst.effname, r.name as dst_repo_name FROM packages src JOIN packages dst ON src.effname = dst.effname JOIN repositories r ON dst.repo_id = r.id WHERE src.repo_id IN (${srcIn}) AND src.${field} = ? AND dst.repo_id IN (${dstIn});`, [val]);
+    const queryDstPkg = (val) => queryRows(`SELECT p.package_name, p.version, pr.name as effname, r.name as dst_repo_name FROM packages p JOIN projects pr ON p.project_id = pr.id JOIN repositories r ON p.repo_id = r.id WHERE p.repo_id IN (${dstIn}) AND p.package_name = ?;`, [val]);
+    const queryDstProj = (val) => queryRows(`SELECT p.package_name, p.version, pr.name as effname, r.name as dst_repo_name FROM projects pr JOIN packages p ON pr.id = p.project_id JOIN repositories r ON p.repo_id = r.id WHERE p.repo_id IN (${dstIn}) AND pr.name = ?;`, [val]);
+    const queryStrictPkg = (val) => queryRows(`SELECT dst.package_name, dst.version, pr.name as effname, r.name as dst_repo_name FROM packages src JOIN projects pr ON src.project_id = pr.id JOIN packages dst ON src.project_id = dst.project_id JOIN repositories r ON dst.repo_id = r.id WHERE src.repo_id IN (${srcIn}) AND src.package_name = ? AND dst.repo_id IN (${dstIn});`, [val]);
+    const queryStrictProj = (val) => queryRows(`SELECT dst.package_name, dst.version, pr.name as effname, r.name as dst_repo_name FROM projects pr JOIN packages src ON pr.id = src.project_id JOIN packages dst ON src.project_id = dst.project_id JOIN repositories r ON dst.repo_id = r.id WHERE src.repo_id IN (${srcIn}) AND pr.name = ? AND dst.repo_id IN (${dstIn});`, [val]);
 
     const results = uniqueInputs.map(inputPkg => {
       const lower = inputPkg.toLowerCase();
-      let matches = !isGeneric ? queryStrict("package_name", inputPkg) : queryDst("package_name", inputPkg);
-      if (!matches.length) matches = !isGeneric ? queryStrict("effname", inputPkg) : queryDst("effname", inputPkg);
+      let matches = !isGeneric ? queryStrictPkg(inputPkg) : queryDstPkg(inputPkg);
+      if (!matches.length) matches = !isGeneric ? queryStrictProj(inputPkg) : queryDstProj(inputPkg);
       if (isGeneric && !matches.length) {
-        const eff = resolveCanonicalEffname(inputPkg) || queryRows("SELECT effname FROM packages WHERE package_name = ? LIMIT 1;", [inputPkg])[0]?.effname;
-        if (eff) matches = queryDst("effname", eff);
+        const eff = resolveCanonicalEffname(inputPkg) || queryRows("SELECT pr.name FROM packages p JOIN projects pr ON p.project_id = pr.id WHERE p.package_name = ? LIMIT 1;", [inputPkg])[0]?.name;
+        if (eff) matches = queryDstProj(eff);
       }
 
       if (matches.length > 0) {
@@ -392,10 +401,10 @@ function handleBatchResolve(queryId, packages, fromRepo, toRepo) {
       }
       let unresEffname = null;
       if (!isGeneric) {
-        const srcMatch = queryRows(`SELECT effname FROM packages WHERE repo_id IN (${srcIn}) AND (package_name = ? OR effname = ?) LIMIT 1;`, [inputPkg, inputPkg])[0];
-        if (srcMatch) unresEffname = srcMatch.effname;
+        const srcMatch = queryRows(`SELECT pr.name FROM packages src JOIN projects pr ON src.project_id = pr.id WHERE src.repo_id IN (${srcIn}) AND (src.package_name = ? OR pr.name = ?) LIMIT 1;`, [inputPkg, inputPkg])[0];
+        if (srcMatch) unresEffname = srcMatch.name;
       } else {
-        unresEffname = resolveCanonicalEffname(inputPkg) || queryRows("SELECT effname FROM packages WHERE package_name = ? LIMIT 1;", [inputPkg])[0]?.effname;
+        unresEffname = resolveCanonicalEffname(inputPkg) || queryRows("SELECT pr.name FROM packages p JOIN projects pr ON p.project_id = pr.id WHERE p.package_name = ? LIMIT 1;", [inputPkg])[0]?.name;
       }
       const notInSource = !isGeneric && !unresEffname;
       return { input: inputPkg, resolved: false, targetName: null, targetVersion: null, effname: unresEffname, reason: notInSource ? "not_in_source" : "not_in_target" };

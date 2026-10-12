@@ -21,6 +21,11 @@ def mock_db(tmp_path: Path) -> Path:
     cursor = conn.cursor()
 
     cursor.executescript("""
+    CREATE TABLE projects (
+        id INTEGER PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL
+    );
+
     CREATE TABLE repositories (
         id INTEGER PRIMARY KEY,
         name TEXT UNIQUE NOT NULL,
@@ -34,14 +39,21 @@ def mock_db(tmp_path: Path) -> Path:
     );
 
     CREATE TABLE packages (
+        project_id INTEGER NOT NULL REFERENCES projects(id),
         repo_id INTEGER NOT NULL REFERENCES repositories(id),
         package_name TEXT NOT NULL,
-        effname TEXT NOT NULL,
         version TEXT,
-        PRIMARY KEY (repo_id, package_name)
+        PRIMARY KEY (project_id, repo_id, package_name)
     ) WITHOUT ROWID;
 
-    CREATE INDEX idx_effname ON packages (effname);
+    CREATE INDEX idx_package_name ON packages (package_name);
+
+    INSERT INTO projects (id, name) VALUES
+        (1, 'bat'),
+        (2, 'ripgrep'),
+        (3, 'emacs-magit'),
+        (4, 'typst'),
+        (5, 'haskell:typst');
 
     INSERT INTO repositories (id, name, family, package_count) VALUES
         (1, 'debian_12', 'debian', 100),
@@ -52,17 +64,17 @@ def mock_db(tmp_path: Path) -> Path:
     INSERT INTO repository_aliases (alias, target_repo) VALUES
         ('deb', 'debian_12');
 
-    INSERT INTO packages (repo_id, package_name, effname, version) VALUES
-        (1, 'batcat', 'bat', '0.24.0'),
-        (2, 'bat', 'bat', '0.24.0'),
-        (3, 'bat', 'bat', '0.24.0'),
-        (1, 'ripgrep', 'ripgrep', '14.1.0'),
-        (2, 'ripgrep', 'ripgrep', '14.1.0'),
-        (3, 'emacsPackages.magit', 'emacs-magit', '4.0.0'),
-        (2, 'typst', 'typst', '0.15.1'),
-        (2, 'haskell-typst', 'haskell:typst', '0.12'),
-        (3, 'typst', 'typst', '0.15.1'),
-        (3, 'haskellPackages.typst', 'haskell:typst', '0.12');
+    INSERT INTO packages (project_id, repo_id, package_name, version) VALUES
+        (1, 1, 'batcat', '0.24.0'),
+        (1, 2, 'bat', '0.24.0'),
+        (1, 3, 'bat', '0.24.0'),
+        (2, 1, 'ripgrep', '14.1.0'),
+        (2, 2, 'ripgrep', '14.1.0'),
+        (3, 3, 'emacsPackages.magit', '4.0.0'),
+        (4, 2, 'typst', '0.15.1'),
+        (5, 2, 'haskell-typst', '0.12'),
+        (4, 3, 'typst', '0.15.1'),
+        (5, 3, 'haskellPackages.typst', '0.12');
     """)
     conn.commit()
     conn.close()

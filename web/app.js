@@ -74,8 +74,13 @@ function initWorker() {
       elStatusMessage.textContent = d.message;
       if (d.downloading) elProgressBar.classList.remove("hidden");
     } else if (d.type === "progress") {
-      elProgressFill.style.width = `${d.percent}%`;
-      elStatusMessage.textContent = `Downloading database: ${d.percent}% (${d.receivedMb} / ${d.totalMb} MB)`;
+      if (d.percent !== null && d.percent !== undefined) {
+        elProgressFill.style.width = `${d.percent}%`;
+        elStatusMessage.textContent = `Downloading database: ${d.percent}% (${d.receivedMb} / ${d.totalMb} MB)`;
+      } else {
+        elProgressFill.style.width = "100%";
+        elStatusMessage.textContent = `Downloading database: ${d.receivedMb} MB`;
+      }
     } else if (d.type === "ready") {
       elStatusContainer.classList.add("hidden");
       elAppContainer.classList.remove("hidden");

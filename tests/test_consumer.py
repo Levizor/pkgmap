@@ -49,12 +49,13 @@ def test_sqlite_consumer_ingestion(tmp_path: Path) -> None:
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
 
-    # Check packages table
+    # Check packages and projects tables
     cursor.execute(
         """
-        SELECT r.name, p.package_name, p.effname, p.version
+        SELECT r.name, p.package_name, pr.name, p.version
         FROM packages p
         JOIN repositories r ON p.repo_id = r.id
+        JOIN projects pr ON p.project_id = pr.id
         ORDER BY r.name, p.package_name
         """
     )
@@ -71,11 +72,12 @@ def test_sqlite_consumer_ingestion(tmp_path: Path) -> None:
     assert repos[1] == ("debian_12", "debian", 2)
     assert repos[2] == ("nix_unstable", "nix", 1)
 
+    # Check projects table existence
+    cursor.execute("SELECT name FROM projects ORDER BY name")
+    projects = [r[0] for r in cursor.fetchall()]
+    assert projects == ["bat", "ripgrep"]
+
     # Check index existence
-    cursor.execute(
-        "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_effname'"
-    )
-    assert cursor.fetchone() is not None
     cursor.execute(
         "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_package_name'"
     )
@@ -87,7 +89,7 @@ def test_sqlite_consumer_ingestion(tmp_path: Path) -> None:
         SELECT dst.package_name, dst.version
         FROM packages src
         JOIN repositories src_repo ON src.repo_id = src_repo.id
-        JOIN packages dst ON src.effname = dst.effname
+        JOIN packages dst ON src.project_id = dst.project_id
         JOIN repositories dst_repo ON dst.repo_id = dst_repo.id
         WHERE src_repo.name = ? AND src.package_name = ? AND dst_repo.name = ?;
         """,
