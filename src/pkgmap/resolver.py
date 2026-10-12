@@ -94,6 +94,21 @@ def get_missing_repositories(
 BATCH_CHUNK_SIZE = 500
 
 
+def _rank_match(
+    query_pkg: str, res: PackageResolution
+) -> tuple[str, int, int, int, int, str]:
+    lower_q = query_pkg.lower()
+    lower_name = res.name.lower()
+    return (
+        res.repo,
+        0 if lower_name == lower_q else 1,
+        1 if lower_name.endswith(("-git", "-bin")) else 0,
+        1 if ("." in res.name or "/" in res.name) else 0,
+        len(res.name),
+        res.name,
+    )
+
+
 def resolve_batch_all(
     packages: Sequence[str],
     from_repo: str | None = None,
@@ -155,6 +170,43 @@ def resolve_batch_all(
                             repo_family=row[4],
                         )
                     )
+
+            if src_repo:
+                unmatched = [pkg for pkg in chunk if not results[pkg]]
+                if unmatched:
+                    u_placeholders = ",".join("?" for _ in unmatched)
+                    fallback_sql = f"""
+                    SELECT DISTINCT pr.name, dst.package_name, dst.version, dst_repo.name, dst_repo.family
+                    FROM projects pr
+                    JOIN packages src ON pr.id = src.project_id
+                    JOIN repositories src_repo ON src.repo_id = src_repo.id
+                    JOIN packages dst ON pr.id = dst.project_id
+                    JOIN repositories dst_repo ON dst.repo_id = dst_repo.id
+                    WHERE src_repo.name = ? AND pr.name IN ({u_placeholders})
+                    """
+                    fallback_params: list[str] = [src_repo, *unmatched]
+                    if dst_repo:
+                        fallback_sql += " AND dst_repo.name = ?"
+                        fallback_params.append(dst_repo)
+                    fallback_sql += " ORDER BY 1, dst_repo.name, dst.package_name;"
+
+                    cursor.execute(fallback_sql, fallback_params)
+                    for row in cursor.fetchall():
+                        key = row[0]
+                        if key in results:
+                            results[key].append(
+                                PackageResolution(
+                                    name=row[1],
+                                    version=row[2],
+                                    repo=row[3],
+                                    repo_family=row[4],
+                                )
+                            )
+
+        for pkg, matches in results.items():
+            if len(matches) > 1:
+                matches.sort(key=lambda r: _rank_match(pkg, r))
+
         return results
     finally:
         conn.close()
