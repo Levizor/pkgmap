@@ -261,3 +261,156 @@ body {
 .hidden {
   display: none !important;
 }
+
+/* ==========================================================================
+   Responsive Mobile Card View & Scroll Safeguards
+   ========================================================================== */
+
+.table-responsive-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.row-version-mobile {
+  display: none;
+}
+
+.row-version-desktop {
+  display: table-cell;
+}
+
+.row-arrow-mobile {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .row-version-mobile {
+    display: inline-block;
+  }
+
+  .row-version-desktop {
+    display: none !important;
+  }
+
+  .row-arrow-mobile {
+    display: inline-block;
+  }
+
+  /* Table becomes a vertical stack of cards */
+  .mobile-card-table thead {
+    display: none !important;
+  }
+
+  .mobile-card-table,
+  .mobile-card-table tbody {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Single Lookup Card */
+  .single-row {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    grid-template-rows: auto auto !important;
+    padding: 0.75rem 1rem !important;
+    gap: 0.35rem 0.75rem !important;
+    align-items: center !important;
+    border-bottom: 1px solid rgba(39, 39, 42, 0.4) !important;
+  }
+
+  .single-row:last-child {
+    border-bottom: none !important;
+  }
+
+  .single-row .col-distro {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    padding: 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .single-row .col-action {
+    grid-column: 2 !important;
+    grid-row: 1 / span 2 !important;
+    padding: 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    justify-self: end !important;
+    align-self: center !important;
+  }
+
+  .single-row .col-pkg {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    padding: 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  /* Batch Migrate Card */
+  .batch-row {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    grid-template-rows: auto auto !important;
+    padding: 0.75rem 1rem !important;
+    gap: 0.35rem 0.75rem !important;
+    align-items: center !important;
+    border-bottom: 1px solid rgba(39, 39, 42, 0.4) !important;
+  }
+
+  .batch-row:last-child {
+    border-bottom: none !important;
+  }
+
+  .batch-row .col-batch-src {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    padding: 0 !important;
+    font-size: 0.8125rem !important;
+    color: #a1a1aa !important;
+  }
+
+  .batch-row .col-batch-arrow {
+    display: none !important;
+  }
+
+  .batch-row .col-batch-dst {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    padding: 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .batch-row .col-action {
+    grid-column: 2 !important;
+    grid-row: 1 / span 2 !important;
+    padding: 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    justify-self: end !important;
+    align-self: center !important;
+  }
+
+  .mobile-card-table tr:has(.empty-msg) {
+    display: block !important;
+  }
+
+  /* Touch-friendly buttons on mobile */
+  .btn-copy {
+    width: 4.5rem !important;
+    padding: 0.45rem 0 !important;
+    border-radius: 0.375rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  .batch-textarea {
+    min-height: 8rem;
+  }
+
+  .mode-tab-btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+  }
+}
