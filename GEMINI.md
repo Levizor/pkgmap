@@ -16,6 +16,11 @@ This document defines core conventions, architecture, and standards for `pkgmap`
 The database uses a project-centered star schema and repository metadata to enable any-to-any repository resolution with minimal storage overhead:
 
 ```sql
+CREATE TABLE projects (
+    id INTEGER PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL            -- canonical upstream project/effective name, e.g. 'bat'
+);
+
 CREATE TABLE repositories (
     id INTEGER PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,           -- canonical Repology slug, e.g. 'debian_12', 'nix_unstable'
@@ -29,24 +34,23 @@ CREATE TABLE repository_aliases (
 );
 
 CREATE TABLE packages (
+    project_id INTEGER NOT NULL REFERENCES projects(id),
     repo_id INTEGER NOT NULL REFERENCES repositories(id),
     package_name TEXT NOT NULL,          -- native package name, e.g. 'batcat'
-    effname TEXT NOT NULL,               -- canonical upstream project/effective name, e.g. 'bat'
     version TEXT,                        -- normalized upstream version, e.g. '0.24.0'
-    PRIMARY KEY (repo_id, package_name)
+    PRIMARY KEY (project_id, repo_id, package_name)
 ) WITHOUT ROWID;
 
-CREATE INDEX idx_effname ON packages (effname);
 CREATE INDEX idx_package_name ON packages (package_name);
 ```
 
-Resolving a package from repo `A` to repo `B` performs an indexed self-join on `effname`:
+Resolving a package from repo `A` to repo `B` performs an indexed self-join on `project_id`:
 
 ```sql
 SELECT dst.package_name, dst.version
 FROM packages src
 JOIN repositories src_repo ON src.repo_id = src_repo.id
-JOIN packages dst ON src.effname = dst.effname
+JOIN packages dst ON src.project_id = dst.project_id
 JOIN repositories dst_repo ON dst.repo_id = dst_repo.id
 WHERE src_repo.name = ? AND src.package_name = ? AND dst_repo.name = ?;
 ```

@@ -8,6 +8,10 @@ from pkgmap.schema import PackageRecord, RepoFamilyMap, Repository
 logger = setup_logger("pkgmap-consumer")
 
 SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL
+);
 CREATE TABLE IF NOT EXISTS repositories (
     id INTEGER PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,
@@ -19,16 +23,17 @@ CREATE TABLE IF NOT EXISTS repository_aliases (
     target_repo TEXT NOT NULL REFERENCES repositories(name)
 );
 CREATE TABLE IF NOT EXISTS packages (
+    project_id INTEGER NOT NULL REFERENCES projects(id),
     repo_id INTEGER NOT NULL REFERENCES repositories(id),
     package_name TEXT NOT NULL,
-    effname TEXT NOT NULL,
     version TEXT,
-    PRIMARY KEY (repo_id, package_name)
+    PRIMARY KEY (project_id, repo_id, package_name)
 ) WITHOUT ROWID;
 """
 
+INSERT_PROJECTS_QUERY = "INSERT OR IGNORE INTO projects (id, name) VALUES (?, ?)"
 INSERT_PACKAGES_QUERY = (
-    "INSERT OR IGNORE INTO packages (repo_id, package_name, effname, version) "
+    "INSERT OR IGNORE INTO packages (project_id, repo_id, package_name, version) "
     "VALUES (?, ?, ?, ?)"
 )
 
@@ -36,7 +41,6 @@ INSERT_REPOSITORIES_QUERY = "INSERT OR REPLACE INTO repositories (id, name, fami
 
 SELECT_REPO_COUNTS_QUERY = "SELECT repo_id, COUNT(*) FROM packages GROUP BY repo_id"
 
-CREATE_INDEX_QUERY = "CREATE INDEX IF NOT EXISTS idx_effname ON packages (effname);"
 CREATE_INDEX_PKGNAME_QUERY = (
     "CREATE INDEX IF NOT EXISTS idx_package_name ON packages (package_name);"
 )
@@ -49,6 +53,7 @@ class SQLiteConsumer:
         self.batch_counter = 0
         self.total_records = 0
         self.repo_ids: dict[str, int] = {}
+        self.project_ids: dict[str, int] = {}
 
     def init_db_schema(self, conn: sqlite3.Connection) -> None:
         conn.executescript(SCHEMA_SQL)
@@ -59,15 +64,23 @@ class SQLiteConsumer:
         logger.info(
             f"Sending batch {self.batch_counter} (size={len(batch):,}, total={self.total_records:,})"
         )
-        rows = [
-            (
-                self.repo_ids.setdefault(pkg.repo, len(self.repo_ids) + 1),
-                pkg.package_name,
-                pkg.effname,
-                pkg.version,
-            )
-            for pkg in batch
-        ]
+        new_projects: list[tuple[int, str]] = []
+        rows: list[tuple[int, int, str, str | None]] = []
+
+        for pkg in batch:
+            if pkg.effname not in self.project_ids:
+                proj_id = len(self.project_ids) + 1
+                self.project_ids[pkg.effname] = proj_id
+                new_projects.append((proj_id, pkg.effname))
+            else:
+                proj_id = self.project_ids[pkg.effname]
+
+            repo_id = self.repo_ids.setdefault(pkg.repo, len(self.repo_ids) + 1)
+            rows.append((proj_id, repo_id, pkg.package_name, pkg.version))
+
+        if new_projects:
+            conn.executemany(INSERT_PROJECTS_QUERY, new_projects)
+
         conn.executemany(INSERT_PACKAGES_QUERY, rows)
         conn.commit()
         batch.clear()
@@ -107,6 +120,7 @@ class SQLiteConsumer:
     ) -> None:
         self.output_file.parent.mkdir(parents=True, exist_ok=True)
         self.repo_ids = {}
+        self.project_ids = {}
         conn = sqlite3.connect(self.output_file)
 
         # WAL mode: Appends writes sequentially to a write-ahead log rather than altering the main DB
@@ -130,7 +144,6 @@ class SQLiteConsumer:
 
         self.populate_repositories(conn, repo_families)
 
-        conn.execute(CREATE_INDEX_QUERY)
         conn.execute(CREATE_INDEX_PKGNAME_QUERY)
         conn.commit()
 

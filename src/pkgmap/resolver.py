@@ -97,17 +97,18 @@ def resolve_batch_all(
                 SELECT src.package_name, dst.package_name, dst.version, dst_repo.name, dst_repo.family
                 FROM packages src
                 JOIN repositories src_repo ON src.repo_id = src_repo.id
-                JOIN packages dst ON src.effname = dst.effname
+                JOIN packages dst ON src.project_id = dst.project_id
                 JOIN repositories dst_repo ON dst.repo_id = dst_repo.id
                 WHERE src_repo.name = ? AND src.package_name IN ({placeholders})
                 """
                 params: list[str] = [src_repo, *chunk]
             else:
                 sql = f"""
-                SELECT dst.effname, dst.package_name, dst.version, dst_repo.name, dst_repo.family
-                FROM packages dst
+                SELECT pr.name, dst.package_name, dst.version, dst_repo.name, dst_repo.family
+                FROM projects pr
+                JOIN packages dst ON pr.id = dst.project_id
                 JOIN repositories dst_repo ON dst.repo_id = dst_repo.id
-                WHERE dst.effname IN ({placeholders})
+                WHERE pr.name IN ({placeholders})
                 """
                 params = list(chunk)
 
