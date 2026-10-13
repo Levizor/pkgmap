@@ -111,8 +111,8 @@ pkgmap update --full
 
 | Variant | File | Compressed Size | Coverage | Default For |
 | :--- | :--- | :--- | :--- | :--- |
-| **Core** | `pkgmap-core.db` | ~7 MB | Top 10 repositories (Nixpkgs, Arch, AUR, Debian, Ubuntu, Fedora, Alpine, openSUSE, Gentoo, Void) | **CLI & Web UI** |
-| **Full** | `pkgmap.db` | ~37 MB | All 330+ Repology repositories | **Python Library** |
+| **Core** | `pkgmap-core.db` | ~12 MB | Top 10 repositories (Nixpkgs, Arch, AUR, Debian, Ubuntu, Fedora, Alpine, openSUSE, Gentoo, Void) | **CLI & Web UI** |
+| **Full** | `pkgmap.db` | ~40 MB | All 330+ Repology repositories | **Python Library** |
 
 - **CLI behavior**: Defaults to the **Core** database (`~/.cache/pkgmap/pkgmap-core.db`) unless the Full database is already downloaded locally or `--full` is passed. If you query a repository not present in Core, the CLI prompts you to run `pkgmap update --full`. You can also pass `--core` or `--full` to any CLI command (`resolve`, `update`, `repos`).
 - **Python library behavior**: Defaults to the **Full** database (`~/.cache/pkgmap/pkgmap.db`). Call `set_default_variant("core")` (or set `PKGMAP_DB_VARIANT=core`) to use the Core database instead.
