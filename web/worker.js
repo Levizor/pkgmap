@@ -370,7 +370,12 @@ function handleMatrix(queryId, name) {
       JOIN repositories r ON p.repo_id = r.id
       WHERE pr.name = ?
       ORDER BY r.package_count DESC;
-    `, [effname]);
+    `, [effname]).map(p => {
+      if (p.repo_family === "nix") {
+        p.package_name = p.package_name.replace(/-unwrapped(?=($|["_-]))/g, "");
+      }
+      return p;
+    });
 
     postMessage({
       type: "matrix_result", id: queryId, found: true, query: term,
@@ -386,6 +391,7 @@ function sortBatchMatches(matches, lower) {
     m.dst_repo_name === "aur" ? 1 : 0,
     m.package_name.toLowerCase() === lower ? 0 : 1,
     (m.package_name.endsWith("-git") || m.package_name.endsWith("-bin")) ? 1 : 0,
+    m.package_name.includes("-unwrapped") ? 1 : 0,
     (/[./]/.test(m.package_name)) ? 1 : 0,
     m.package_name.length
   ];
@@ -430,6 +436,11 @@ function handleBatchResolve(queryId, packages, fromRepo, toRepo) {
       }
 
       if (matches.length > 0) {
+        if (dstRepos[0]?.family === "nix") {
+          matches.forEach(m => {
+            m.package_name = m.package_name.replace(/-unwrapped(?=($|["_-]))/g, "");
+          });
+        }
         sortBatchMatches(matches, lower);
         const best = matches[0];
         return { input: inputPkg, resolved: true, targetName: best.package_name, targetVersion: best.version, repoSource: best.dst_repo_name, effname: best.effname, matchCount: matches.length };

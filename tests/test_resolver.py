@@ -263,3 +263,51 @@ def test_resolve_fallback_to_source_project_name_and_ranking(tmp_path: Path) -> 
     assert res is not None
     assert res.name == "gcc"
     assert res.version == "15.2.0"
+
+    # Resolving from gnuguix to nix should resolve to 'gcc' instead of 'gcc-unwrapped'
+    res_to_nix = resolve(
+        "gcc", from_repo="gnuguix", to_repo="nix_unstable", db_path=db_path
+    )
+    assert res_to_nix is not None
+    assert res_to_nix.name == "gcc"
+
+
+def test_resolve_nix_unwrapped_packages(tmp_path: Path) -> None:
+    db_path = tmp_path / "nix_unwrap_test.sqlite"
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+    CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
+    CREATE TABLE repositories (id INTEGER PRIMARY KEY, name TEXT UNIQUE, family TEXT, package_count INTEGER);
+    CREATE TABLE repository_aliases (alias TEXT PRIMARY KEY, target_repo TEXT);
+    CREATE TABLE packages (project_id INTEGER, repo_id INTEGER, package_name TEXT, version TEXT, PRIMARY KEY (project_id, repo_id, package_name)) WITHOUT ROWID;
+    CREATE INDEX idx_package_name ON packages (package_name);
+
+    INSERT INTO projects VALUES (1, 'kakoune'), (2, 'firefox');
+    INSERT INTO repositories VALUES (1, 'debian_12', 'debian', 100), (2, 'nix_unstable', 'nix', 100);
+    INSERT INTO repository_aliases VALUES ('nix', 'nix_unstable'), ('debian', 'debian_12');
+    INSERT INTO packages VALUES
+        (1, 1, 'kakoune', '2026.05.21'),
+        (1, 2, 'kakoune-unwrapped', '2026.05.21'),
+        (2, 1, 'firefox', '133.0.3'),
+        (2, 2, 'firefox', '133.0.3'),
+        (2, 2, 'firefox-unwrapped', '133.0.3');
+    """)
+    conn.commit()
+    conn.close()
+
+    # 1. kakoune only has kakoune-unwrapped in nix -> resolves to 'kakoune'
+    res_kak = resolve("kakoune", from_repo="debian", to_repo="nix", db_path=db_path)
+    assert res_kak is not None
+    assert res_kak.name == "kakoune"
+
+    # 2. Querying kakoune-unwrapped from nix to debian resolves to debian's 'kakoune'
+    res_from_nix = resolve(
+        "kakoune-unwrapped", from_repo="nix", to_repo="debian", db_path=db_path
+    )
+    assert res_from_nix is not None
+    assert res_from_nix.name == "kakoune"
+
+    # 3. firefox has both wrapped and unwrapped -> resolves to 'firefox' and dedupes
+    all_res = resolve_all("firefox", from_repo="debian", to_repo="nix", db_path=db_path)
+    assert len(all_res) == 1
+    assert all_res[0].name == "firefox"

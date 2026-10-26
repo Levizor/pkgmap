@@ -3,7 +3,11 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from pkgmap.db import ensure_database
-from pkgmap.schema import PackageResolution, Repository
+from pkgmap.schema import (
+    PackageResolution,
+    Repository,
+    normalize_nix_package_name,
+)
 
 DEFAULT_ALIASES: dict[str, str] = {
     "debian": "debian_12",
@@ -96,13 +100,14 @@ BATCH_CHUNK_SIZE = 500
 
 def _rank_match(
     query_pkg: str, res: PackageResolution
-) -> tuple[str, int, int, int, int, str]:
+) -> tuple[str, int, int, int, int, int, str]:
     lower_q = query_pkg.lower()
     lower_name = res.name.lower()
     return (
         res.repo,
         0 if lower_name == lower_q else 1,
         1 if lower_name.endswith(("-git", "-bin")) else 0,
+        1 if "-unwrapped" in lower_name else 0,
         1 if ("." in res.name or "/" in res.name) else 0,
         len(res.name),
         res.name,
@@ -162,19 +167,30 @@ def resolve_batch_all(
             for row in cursor.fetchall():
                 key = row[0]
                 if key in results:
+                    name = row[1]
+                    repo_family = row[4]
+                    if repo_family == "nix":
+                        name = normalize_nix_package_name(name)
                     results[key].append(
                         PackageResolution(
-                            name=row[1],
+                            name=name,
                             version=row[2],
                             repo=row[3],
-                            repo_family=row[4],
+                            repo_family=repo_family,
                         )
                     )
 
             if src_repo:
                 unmatched = [pkg for pkg in chunk if not results[pkg]]
                 if unmatched:
-                    u_placeholders = ",".join("?" for _ in unmatched)
+                    proj_to_pkgs: dict[str, list[str]] = {}
+                    for pkg in unmatched:
+                        proj_to_pkgs.setdefault(pkg, []).append(pkg)
+                        norm = normalize_nix_package_name(pkg)
+                        if norm != pkg:
+                            proj_to_pkgs.setdefault(norm, []).append(pkg)
+
+                    u_placeholders = ",".join("?" for _ in proj_to_pkgs)
                     fallback_sql = f"""
                     SELECT DISTINCT pr.name, dst.package_name, dst.version, dst_repo.name, dst_repo.family
                     FROM projects pr
@@ -184,7 +200,7 @@ def resolve_batch_all(
                     JOIN repositories dst_repo ON dst.repo_id = dst_repo.id
                     WHERE src_repo.name = ? AND pr.name IN ({u_placeholders})
                     """
-                    fallback_params: list[str] = [src_repo, *unmatched]
+                    fallback_params: list[str] = [src_repo, *proj_to_pkgs.keys()]
                     if dst_repo:
                         fallback_sql += " AND dst_repo.name = ?"
                         fallback_params.append(dst_repo)
@@ -192,22 +208,36 @@ def resolve_batch_all(
 
                     cursor.execute(fallback_sql, fallback_params)
                     for row in cursor.fetchall():
-                        key = row[0]
-                        if key in results:
-                            results[key].append(
-                                PackageResolution(
-                                    name=row[1],
-                                    version=row[2],
-                                    repo=row[3],
-                                    repo_family=row[4],
+                        pr_name = row[0]
+                        for input_key in proj_to_pkgs.get(pr_name, []):
+                            if input_key in results:
+                                name = row[1]
+                                repo_family = row[4]
+                                if repo_family == "nix":
+                                    name = normalize_nix_package_name(name)
+                                results[input_key].append(
+                                    PackageResolution(
+                                        name=name,
+                                        version=row[2],
+                                        repo=row[3],
+                                        repo_family=repo_family,
+                                    )
                                 )
-                            )
 
         for pkg, matches in results.items():
-            if len(matches) > 1:
-                matches.sort(key=lambda r: _rank_match(pkg, r))
+            seen: set[tuple[str, str, str | None]] = set()
+            deduped: list[PackageResolution] = []
+            for m in matches:
+                dedup_key = (m.repo, m.name, m.version)
+                if dedup_key not in seen:
+                    seen.add(dedup_key)
+                    deduped.append(m)
+            if len(deduped) > 1:
+                deduped.sort(key=lambda r: _rank_match(pkg, r))
+            results[pkg] = deduped
 
         return results
+
     finally:
         conn.close()
 

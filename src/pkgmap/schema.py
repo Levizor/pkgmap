@@ -1,3 +1,4 @@
+import re
 from typing import NamedTuple
 
 
@@ -35,6 +36,11 @@ class PackageResolution(NamedTuple):
 REPOLOGY_SCHEMA_URL = "https://github.com/repology/repology-updater/blob/master/sql.d/schema/create_schema_tables.sql"
 
 
+def normalize_nix_package_name(name: str) -> str:
+    """Normalize Nix package names by stripping unwrapped derivation markers."""
+    return re.sub(r"-unwrapped(?=($|[\"_-]))", "", name)
+
+
 class RepologyPackageRow(NamedTuple):
     """Repology 'packages' table row schema extracted from PostgreSQL dumps.
 
@@ -61,6 +67,7 @@ class RepologyPackageRow(NamedTuple):
                 package_name = self.srcname
             elif self.category:
                 package_name = f"{self.category}.{self.visiblename}"
+            package_name = normalize_nix_package_name(package_name)
 
         return PackageRecord(
             repo=self.repo,
