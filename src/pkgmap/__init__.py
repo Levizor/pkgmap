@@ -17,6 +17,7 @@ from pkgmap.resolver import (
     resolve_batch_all,
     resolve_project,
 )
+from pkgmap.schema import normalize_nix_package_name
 
 __version__ = "0.2.0"
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "get_database_path",
     "get_default_variant",
     "list_repositories",
+    "normalize_nix_package_name",
     "resolve",
     "resolve_all",
     "resolve_batch",
