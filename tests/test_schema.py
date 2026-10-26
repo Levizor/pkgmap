@@ -1,4 +1,9 @@
-from pkgmap.schema import PackageRecord, RepologyPackageRow, Repository
+from pkgmap.schema import (
+    PackageRecord,
+    RepologyPackageRow,
+    Repository,
+    normalize_nix_package_name,
+)
 
 
 def test_repository_model() -> None:
@@ -87,3 +92,49 @@ def test_repology_row_nix_attribute_resolution() -> None:
         category="utils",
     )
     assert debian_row.to_package_record().package_name == "batcat"
+
+    # 5. Nix package with -unwrapped suffix
+    unwrapped_row = RepologyPackageRow(
+        repo="nix_unstable",
+        family="nix",
+        visiblename="kakoune-unwrapped",
+        effname="kakoune",
+        srcname="kakoune-unwrapped",
+        category=None,
+    )
+    assert unwrapped_row.to_package_record().package_name == "kakoune"
+
+    # 6. Nix package namespaced with -unwrapped
+    sddm_row = RepologyPackageRow(
+        repo="nix_unstable",
+        family="nix",
+        visiblename="sddm-unwrapped",
+        effname="sddm",
+        srcname="kdePackages.sddm-unwrapped",
+        category="kdePackages",
+    )
+    assert sddm_row.to_package_record().package_name == "kdePackages.sddm"
+
+
+def test_normalize_nix_package_name() -> None:
+    assert normalize_nix_package_name("kakoune-unwrapped") == "kakoune"
+    assert normalize_nix_package_name("mold-unwrapped") == "mold"
+    assert (
+        normalize_nix_package_name('aroccPackages."0-unstable-2026-04-02-unwrapped"')
+        == 'aroccPackages."0-unstable-2026-04-02"'
+    )
+    assert (
+        normalize_nix_package_name("rxvt-unicode-unwrapped-emoji")
+        == "rxvt-unicode-emoji"
+    )
+    assert normalize_nix_package_name("lxd-unwrapped-lts") == "lxd-lts"
+    assert (
+        normalize_nix_package_name("binutils-unwrapped-all-targets")
+        == "binutils-all-targets"
+    )
+    assert normalize_nix_package_name("binutils-unwrapped_2_38") == "binutils_2_38"
+    assert (
+        normalize_nix_package_name("haskellPackages.unwrapped-functors")
+        == "haskellPackages.unwrapped-functors"
+    )
+    assert normalize_nix_package_name("bat") == "bat"
