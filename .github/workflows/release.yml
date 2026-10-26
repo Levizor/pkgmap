@@ -26,8 +26,9 @@ jobs:
     name: Publish to PyPI
     runs-on: ubuntu-latest
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created && startsWith(needs.release-please.outputs.tag_name, 'v') }}
     permissions:
+
       contents: read
       id-token: write
     steps:
