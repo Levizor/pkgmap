@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/Levizor/pkgmap/compare/v0.2.0...v0.2.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **core:** export normalize_nix_package_name in library root ([09371af](https://github.com/Levizor/pkgmap/commit/09371af1a119c92347d49dc9f0000fa694974ce1))
+* **core:** export normalize_nix_package_name in library root ([934530a](https://github.com/Levizor/pkgmap/commit/934530a0a5dfc76a3acdf8c7cb13e770b0a8c68c))
+
 ## [0.2.0](https://github.com/Levizor/pkgmap/compare/v0.1.1...v0.2.0) (2026-10-26)
 
 
