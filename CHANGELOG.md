@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/Levizor/pkgmap/compare/v0.2.1...v0.3.0) (2026-11-02)
+
+
+### Features
+
+* **resolver:** add opt-in suffix fallback for unlisted versioned repositories ([8e7a82f](https://github.com/Levizor/pkgmap/commit/8e7a82f9819924a262afc47beafa60bd4ae37493))
+* **resolver:** add opt-in suffix fallback for unlisted versioned repositories ([07106fb](https://github.com/Levizor/pkgmap/commit/07106fbbe54d630090b90f93e5d8455d77233725))
+
 ## [0.2.1](https://github.com/Levizor/pkgmap/compare/v0.2.0...v0.2.1) (2026-10-26)
 
 
