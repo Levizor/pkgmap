@@ -114,6 +114,13 @@ def resolve_cmd(
         bool,
         typer.Option("--full", help="Use the full database (all repositories)"),
     ] = False,
+    fallback: Annotated[
+        bool,
+        typer.Option(
+            "--fallback",
+            help="Allow fallback to base distribution if versioned repository is not found",
+        ),
+    ] = False,
     db_path: Annotated[
         Path | None,
         typer.Option("--db-path", help="Custom path to pkgmap.db database"),
@@ -134,6 +141,7 @@ def resolve_cmd(
         from_repo=effective_from,
         to_repo=to_repo,
         db_path=db_path,
+        fallback=fallback,
     )
 
     is_batch = len(packages) > 1

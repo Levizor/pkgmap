@@ -90,9 +90,37 @@ def test_resolve_repo_name(mock_db: Path) -> None:
         assert resolve_repo_name(conn, "nixpkgs") == "nix_unstable"
         assert resolve_repo_name(conn, "fedora") == "fedora_rawhide"
         assert resolve_repo_name(conn, "debian_12") == "debian_12"
-        assert resolve_repo_name(conn, "unknown_repo") == "unknown_repo"
+        # Strict by default: unlisted versioned repo is not found
+        assert resolve_repo_name(conn, "fedora_41") == "fedora_41"
+        assert resolve_repo_name(conn, "debian_11") == "debian_11"
+        # Opt-in fallback
+        assert resolve_repo_name(conn, "fedora_41", fallback=True) == "fedora_rawhide"
+        assert resolve_repo_name(conn, "fedora-41", fallback=True) == "fedora_rawhide"
+        assert resolve_repo_name(conn, "debian_11", fallback=True) == "debian_12"
+        assert resolve_repo_name(conn, "unknown_repo", fallback=True) == "unknown_repo"
     finally:
         conn.close()
+
+
+def test_resolve_package_version_fallback(mock_db: Path) -> None:
+    # Strict by default: debian_11 is not in mock_db
+    strict_res = resolve(
+        "batcat", from_repo="debian_11", to_repo="arch", db_path=mock_db
+    )
+    assert strict_res is None
+
+    # Opt-in fallback enabled
+    res = resolve(
+        "batcat",
+        from_repo="debian_11",
+        to_repo="arch",
+        db_path=mock_db,
+        fallback=True,
+    )
+    assert res is not None
+    assert res.name == "bat"
+    assert res.version == "0.24.0"
+    assert res.repo == "arch"
 
 
 def test_resolve_package(mock_db: Path) -> None:

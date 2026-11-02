@@ -28,9 +28,7 @@ DEFAULT_ALIASES: dict[str, str] = {
 }
 
 
-def find_repo_name(conn: sqlite3.Connection, repo_input: str) -> str | None:
-    """Find the canonical repository slug in the database, or None if not found."""
-    normalized = repo_input.strip().lower().replace("-", "_")
+def _find_repo_name_direct(conn: sqlite3.Connection, normalized: str) -> str | None:
     cursor = conn.cursor()
 
     # 1. Exact match in repositories
@@ -76,21 +74,52 @@ def find_repo_name(conn: sqlite3.Connection, repo_input: str) -> str | None:
     return None
 
 
-def resolve_repo_name(conn: sqlite3.Connection, repo_input: str) -> str:
+def find_repo_name(
+    conn: sqlite3.Connection,
+    repo_input: str,
+    fallback: bool = False,
+) -> str | None:
+    """Find the canonical repository slug in the database, or None if not found."""
+    normalized = repo_input.strip().lower().replace("-", "_")
+
+    direct_match = _find_repo_name_direct(conn, normalized)
+    if direct_match:
+        return direct_match
+
+    if not fallback:
+        return None
+
+    # Progressive suffix stripping fallback (e.g. 'fedora_41' -> 'fedora', 'centos_stream_10' -> 'centos_stream')
+    parts = normalized.split("_")
+    for i in range(len(parts) - 1, 0, -1):
+        prefix = "_".join(parts[:i])
+        match = _find_repo_name_direct(conn, prefix)
+        if match:
+            return match
+
+    return None
+
+
+def resolve_repo_name(
+    conn: sqlite3.Connection,
+    repo_input: str,
+    fallback: bool = False,
+) -> str:
     """Resolve a user-supplied repository alias or name to its canonical slug."""
-    return find_repo_name(conn, repo_input) or repo_input
+    return find_repo_name(conn, repo_input, fallback=fallback) or repo_input
 
 
 def get_missing_repositories(
     repos: Sequence[str],
     db_path: Path | str | None = None,
+    fallback: bool = False,
 ) -> list[str]:
     """Return any repository names from `repos` that cannot be resolved in the database."""
     if not repos:
         return []
     conn = sqlite3.connect(ensure_database(db_path))
     try:
-        return [r for r in repos if find_repo_name(conn, r) is None]
+        return [r for r in repos if find_repo_name(conn, r, fallback=fallback) is None]
     finally:
         conn.close()
 
@@ -119,6 +148,7 @@ def resolve_batch_all(
     from_repo: str | None = None,
     to_repo: str | None = None,
     db_path: Path | str | None = None,
+    fallback: bool = False,
 ) -> dict[str, list[PackageResolution]]:
     """Resolve a batch of packages or projects, returning all matches for each package."""
     if not packages:
@@ -130,8 +160,12 @@ def resolve_batch_all(
 
     try:
         cursor = conn.cursor()
-        src_repo = resolve_repo_name(conn, from_repo) if from_repo else None
-        dst_repo = resolve_repo_name(conn, to_repo) if to_repo else None
+        src_repo = (
+            resolve_repo_name(conn, from_repo, fallback=fallback) if from_repo else None
+        )
+        dst_repo = (
+            resolve_repo_name(conn, to_repo, fallback=fallback) if to_repo else None
+        )
 
         for i in range(0, len(unique_pkgs), BATCH_CHUNK_SIZE):
             chunk = unique_pkgs[i : i + BATCH_CHUNK_SIZE]
@@ -247,10 +281,15 @@ def resolve_batch(
     from_repo: str | None = None,
     to_repo: str | None = None,
     db_path: Path | str | None = None,
+    fallback: bool = False,
 ) -> dict[str, PackageResolution | None]:
     """Resolve a batch of packages or projects, returning the first match for each package."""
     all_res = resolve_batch_all(
-        packages, from_repo=from_repo, to_repo=to_repo, db_path=db_path
+        packages,
+        from_repo=from_repo,
+        to_repo=to_repo,
+        db_path=db_path,
+        fallback=fallback,
     )
     return {pkg: matches[0] if matches else None for pkg, matches in all_res.items()}
 
@@ -260,10 +299,15 @@ def resolve_all(
     from_repo: str | None = None,
     to_repo: str | None = None,
     db_path: Path | str | None = None,
+    fallback: bool = False,
 ) -> list[PackageResolution]:
     """Resolve all equivalent packages across target repository or all repositories."""
     return resolve_batch_all(
-        [package], from_repo=from_repo, to_repo=to_repo, db_path=db_path
+        [package],
+        from_repo=from_repo,
+        to_repo=to_repo,
+        db_path=db_path,
+        fallback=fallback,
     ).get(package, [])
 
 
@@ -272,10 +316,15 @@ def resolve(
     from_repo: str | None = None,
     to_repo: str | None = None,
     db_path: Path | str | None = None,
+    fallback: bool = False,
 ) -> PackageResolution | None:
     """Resolve a package or project to its primary equivalent."""
     return resolve_batch(
-        [package], from_repo=from_repo, to_repo=to_repo, db_path=db_path
+        [package],
+        from_repo=from_repo,
+        to_repo=to_repo,
+        db_path=db_path,
+        fallback=fallback,
     ).get(package)
 
 
@@ -283,9 +332,16 @@ def resolve_project(
     effname: str,
     to_repo: str | None = None,
     db_path: Path | str | None = None,
+    fallback: bool = False,
 ) -> list[PackageResolution]:
     """Resolve packages matching the canonical upstream project name."""
-    return resolve_all(effname, from_repo=None, to_repo=to_repo, db_path=db_path)
+    return resolve_all(
+        effname,
+        from_repo=None,
+        to_repo=to_repo,
+        db_path=db_path,
+        fallback=fallback,
+    )
 
 
 def list_repositories(db_path: Path | str | None = None) -> list[Repository]:
